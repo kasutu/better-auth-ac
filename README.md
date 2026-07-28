@@ -7,14 +7,14 @@
 
 Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL.
 
-**[Features](#-features)** • **[Quick Start](#-quick-start)** • **[Packages](#-packages)** •
-**[Architecture](#️-architecture)**
+**[Features](#features)** | **[Quick Start](#quick-start)** | **[Packages](#packages)** |
+**[Architecture](#architecture)**
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔐 Core Authorization
+### Core Authorization
 
 - **Default deny**: A missing permission record does not grant access.
 - **Explicit deny**: `DENY` overrides `ALLOW` across all assigned roles.
@@ -22,7 +22,7 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Decision traces**: The evaluator returns stable role and effect details.
 - **Scope checks**: Organization and team checks run after role evaluation.
 
-### 🎭 Role Management
+### Role Management
 
 - **Organization roles**: Each organization owns its role names and ranks.
 - **Permission effects**: Each role stores `ALLOW`, `DENY`, or no record for a catalog key.
@@ -30,7 +30,7 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Protected roles**: Normal mutations cannot change owner or system roles.
 - **Version checks**: Compare-and-set writes prevent lost updates.
 
-### 🧭 Permission Catalog
+### Permission Catalog
 
 - **Group boundaries**: `@PermissionGroup()` defines a controller permission prefix.
 - **Permission leaves**: `@Permission()` defines and enforces a method permission.
@@ -38,7 +38,7 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Duplicate checks**: Conflicting definitions for one key stop catalog creation.
 - **Stable versions**: Catalog content produces a deterministic version.
 
-### 🔌 Better Auth Integration
+### Better Auth Integration
 
 - **Server plugin**: The plugin adds schemas and authenticated IAM endpoints.
 - **Client plugin**: The client infers the server endpoint types.
@@ -46,13 +46,13 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Transactions**: The host store applies each mutation in one transaction.
 - **Session invalidation**: Permission and role changes invalidate affected sessions.
 
-### 🧩 CASL Output
+### CASL Output
 
 - **UI rules**: Effective decisions convert to deterministic CASL rules.
 - **Deny rules**: An explicit deny creates an inverted rule with a reason.
 - **Backend authority**: The backend does not accept CASL rules as authorization evidence.
 
-### 📋 Audit Events
+### Audit Events
 
 - `IAM_ROLE_CREATED`
 - `IAM_ROLE_UPDATED`
@@ -65,7 +65,7 @@ events contain added, changed, and removed effects.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -144,7 +144,7 @@ if (!decision.allowed) {
 
 ---
 
-## 📦 Packages
+## Packages
 
 The monorepo contains five packages:
 
@@ -158,7 +158,7 @@ The monorepo contains five packages:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### High-Level Overview
 
@@ -225,7 +225,7 @@ role-permission and member-role compound keys.
 
 ---
 
-## 🔐 Security
+## Security
 
 - Get the tenant from the verified session.
 - Do not trust an organization ID from a request body.
@@ -237,7 +237,7 @@ role-permission and member-role compound keys.
 
 ---
 
-## ⚙️ Compatibility
+## Compatibility
 
 | Component   | Supported version      |
 | ----------- | ---------------------- |
@@ -249,7 +249,7 @@ role-permission and member-role compound keys.
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 npm install
@@ -267,7 +267,7 @@ concurrent updates.
 
 ---
 
-## 📝 License
+## License
 
 Apache License 2.0.
 
