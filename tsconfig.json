@@ -5,6 +5,8 @@
     { "path": "packages/casl" },
     { "path": "packages/nest" },
     { "path": "packages/plugin" },
-    { "path": "packages/testing" }
+    { "path": "packages/testing" },
+    { "path": "examples/pokemon-erp/apps/api" },
+    { "path": "examples/pokemon-erp/apps/web" }
   ]
 }

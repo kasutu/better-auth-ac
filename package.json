@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "repository": "github:kasutu/better-auth-ac",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/pokemon-erp/apps/*"
   ],
   "engines": {
     "node": ">=20"
@@ -15,20 +16,22 @@
     "esbuild": "0.28.1"
   },
   "scripts": {
-    "build": "npm run build -w @better-auth-ac/core && npm run build -w @better-auth-ac/casl && npm run build -w @better-auth-ac/nest && npm run build -w better-auth-ac && npm run build -w @better-auth-ac/testing",
+    "build": "npm run build -w @better-auth-ac/core && npm run build -w @better-auth-ac/casl && npm run build -w @better-auth-ac/nest && npm run build -w better-auth-ac && npm run build -w @better-auth-ac/testing && npm run build -w pokemon-erp-api && npm run build -w pokemon-erp-web",
     "api:check": "node scripts/check-api.mjs",
     "clean": "npm run clean --workspaces --if-present",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run",
+    "test": "vitest run && npm test -w pokemon-erp-api",
     "test:security": "vitest run packages/core/test/security.test.ts packages/plugin/test/security.test.ts",
     "test:integration": "vitest run packages/plugin/test/integration.test.ts",
     "test:migration": "vitest run packages/plugin/test/migration.test.ts",
     "test:concurrency": "vitest run packages/plugin/test/concurrency.test.ts",
     "benchmark": "node packages/core/benchmark/run.mjs",
     "license:check": "node scripts/check-licenses.mjs",
-    "pack:check": "npm pack --dry-run --workspaces"
+    "pack:check": "npm pack --dry-run --workspace @better-auth-ac/core --workspace @better-auth-ac/casl --workspace @better-auth-ac/nest --workspace better-auth-ac --workspace @better-auth-ac/testing",
+    "example:dev": "npm run dev -w pokemon-erp-api & npm run dev -w pokemon-erp-web",
+    "example:start": "npm run start -w pokemon-erp-api"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

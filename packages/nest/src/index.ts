@@ -13,7 +13,7 @@ import {
   UseGuards,
   applyDecorators,
 } from "@nestjs/common";
-import { DiscoveryService, MetadataScanner, Reflector } from "@nestjs/core";
+import { DiscoveryModule, DiscoveryService, MetadataScanner, Reflector } from "@nestjs/core";
 import {
   defineCatalog,
   evaluate,
@@ -151,16 +151,14 @@ export class BetterAuthAcModule {
   static forRoot(options: BetterAuthAcNestOptions): DynamicModule {
     return {
       module: BetterAuthAcModule,
-      imports: [],
+      imports: [DiscoveryModule],
       providers: [
-        DiscoveryService,
-        MetadataScanner,
         PermissionCatalogService,
         PermissionGuard,
         options.contextResolver,
         { provide: IAM_CONTEXT_RESOLVER, useExisting: options.contextResolver },
       ],
-      exports: [PermissionCatalogService, PermissionGuard],
+      exports: [PermissionCatalogService, PermissionGuard, IAM_CONTEXT_RESOLVER],
     };
   }
 }

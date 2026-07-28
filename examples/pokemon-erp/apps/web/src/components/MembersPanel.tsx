@@ -1,0 +1,127 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { authClient } from "../auth-client";
+import { api } from "../api";
+import type { Member, MemberRoles, Role } from "../types";
+
+export function MembersPanel() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [version, setVersion] = useState(0);
+  const [error, setError] = useState("");
+
+  async function load() {
+    try {
+      const [memberResult, roleResult] = await Promise.all([
+        authClient.organization.listMembers({
+          query: { limit: 100 },
+          fetchOptions: { cache: "no-store" },
+        }),
+        api<{ roles: Role[] }>("/api/auth/iam/roles"),
+      ]);
+      const values = (memberResult.data?.members ?? []) as Member[];
+      setMembers(values);
+      setRoles(roleResult.roles);
+      setSelectedMemberId((current) => current || values[0]?.id || "");
+      setError(memberResult.error?.message ?? "");
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Could not load members");
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedMemberId) return;
+    void api<MemberRoles>(
+      `/api/auth/iam/member/roles?memberId=${encodeURIComponent(selectedMemberId)}`,
+    )
+      .then((value) => {
+        setVersion(value.version);
+        setSelectedRoleIds(value.roles.map(({ id }) => id));
+      })
+      .catch((value: unknown) =>
+        setError(value instanceof Error ? value.message : "Could not load member roles"),
+      );
+  }, [selectedMemberId]);
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api("/api/members", {
+        method: "POST",
+        body: { email: form.get("email") },
+      });
+      event.currentTarget.reset();
+      await load();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Could not add member");
+    }
+  }
+
+  async function save() {
+    await api("/api/auth/iam/members/set-roles", {
+      method: "POST",
+      body: {
+        memberId: selectedMemberId,
+        roleIds: selectedRoleIds,
+        expectedVersion: version,
+      },
+    });
+    setVersion((value) => value + 1);
+  }
+
+  return (
+    <section>
+      <h2>Members</h2>
+      {error ? <p role="alert">{error}</p> : null}
+      <form onSubmit={(event) => void add(event)}>
+        <label>
+          Existing user email
+          <input name="email" type="email" required />
+        </label>
+        <button type="submit">Add member</button>
+      </form>
+      <p>Create the user account first, then add its email here.</p>
+
+      <label>
+        Member
+        <select
+          value={selectedMemberId}
+          onChange={(event) => setSelectedMemberId(event.target.value)}
+        >
+          {members.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.user.name} ({member.user.email}) — {member.role}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset>
+        <legend>Assigned AC roles</legend>
+        {roles.map((role) => (
+          <label key={role.id}>
+            <input
+              type="checkbox"
+              checked={selectedRoleIds.includes(role.id)}
+              onChange={(event) =>
+                setSelectedRoleIds((value) =>
+                  event.target.checked ? [...value, role.id] : value.filter((id) => id !== role.id),
+                )
+              }
+            />
+            {role.name}
+          </label>
+        ))}
+      </fieldset>
+      <button type="button" disabled={!selectedMemberId} onClick={() => void save()}>
+        Save member roles
+      </button>
+    </section>
+  );
+}
