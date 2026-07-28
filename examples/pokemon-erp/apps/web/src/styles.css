@@ -1,0 +1,74 @@
+:root {
+  font-family: Arial, sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+}
+
+header,
+nav,
+main {
+  padding: 1rem;
+}
+
+nav {
+  border-block: 1px solid #bbb;
+}
+
+nav button,
+header button {
+  margin-right: 0.5rem;
+}
+
+form,
+fieldset {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+  margin-block: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  padding: 0.4rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 1rem;
+}
+
+th,
+td {
+  padding: 0.5rem;
+  border: 1px solid #bbb;
+  text-align: left;
+  vertical-align: top;
+}
+
+pre {
+  max-width: 32rem;
+  white-space: pre-wrap;
+}
+
+[role="alert"] {
+  color: #b00020;
+}
+
+@media (max-width: 700px) {
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}

@@ -27,6 +27,10 @@ export interface IamRole {
   updatedAt: Date;
 }
 
+export interface IamRoleWithPermissions extends IamRole {
+  permissions: RolePermission[];
+}
+
 export interface ActiveMember {
   userId: string;
   memberId: string;
@@ -185,11 +189,17 @@ export class IamService {
     }
   }
 
-  listRoles(actor: ActiveMember): Promise<IamRole[]> {
+  listRoles(actor: ActiveMember): Promise<IamRoleWithPermissions[]> {
     return this.store.transaction(async (transaction) => {
       const { decisions } = await this.actorBoundary(transaction, actor);
       this.require(decisions, "iam.role.read", actor.isOwner);
-      return transaction.listRoles(actor.organizationId);
+      const roles = await transaction.listRoles(actor.organizationId);
+      return Promise.all(
+        roles.map(async (role) => ({
+          ...role,
+          permissions: await transaction.getRolePermissions(role.id),
+        })),
+      );
     });
   }
 
@@ -359,7 +369,15 @@ export class IamService {
   ability(actor: ActiveMember, developmentTraces = false) {
     return this.store.transaction(async (transaction) => {
       const roles = await transaction.getMemberRoles(actor.organizationId, actor.memberId);
-      const decisions = effective(this.catalog, roles, actor);
+      const decisions = actor.isOwner
+        ? this.catalog.permissions.map(({ key }): Decision => ({
+            key,
+            effect: "ALLOW",
+            allowed: true,
+            reason: "The organization owner has this permission.",
+            trace: [],
+          }))
+        : effective(this.catalog, roles, actor);
       return {
         ...toCaslRules(this.catalog, decisions),
         ...(developmentTraces ? { decisions } : {}),

@@ -1,0 +1,30 @@
+{
+  "name": "pokemon-erp-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --watch --import tsx src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth-ac/core": "0.1.0",
+    "@better-auth-ac/nest": "0.1.0",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "better-auth": "^1.6.25",
+    "better-auth-ac": "0.1.0",
+    "better-sqlite3": "12.2.0",
+    "express": "^5.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "tsx": "^4.20.6"
+  }
+}
