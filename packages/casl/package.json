@@ -1,0 +1,44 @@
+{
+  "name": "@better-auth-ac/casl",
+  "version": "0.1.0",
+  "description": "Deterministic CASL rules from better-auth-ac decisions",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth-ac/core": "0.1.0"
+  },
+  "peerDependencies": {
+    "@casl/ability": "^6.7.0 || ^7.0.0"
+  },
+  "devDependencies": {
+    "@casl/ability": "^7.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kasutu/better-auth-ac.git",
+    "directory": "packages/casl"
+  }
+}

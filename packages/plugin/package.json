@@ -1,0 +1,50 @@
+{
+  "name": "better-auth-ac",
+  "version": "0.1.0",
+  "description": "Organization RBAC plugin for Better Auth",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth-ac/casl": "0.1.0",
+    "@better-auth-ac/core": "0.1.0",
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "better-auth": "^1.6.0"
+  },
+  "devDependencies": {
+    "better-auth": "^1.6.25"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kasutu/better-auth-ac.git",
+    "directory": "packages/plugin"
+  }
+}

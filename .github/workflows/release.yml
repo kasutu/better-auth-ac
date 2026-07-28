@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Validate tag and default branch
+        id: version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z][a-z0-9-]*)\.([0-9]+))?$ ]]; then
+            echo "Invalid semantic version tag: $tag" >&2
+            exit 1
+          fi
+          version="${tag#v}"
+          channel="${BASH_REMATCH[5]:-latest}"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          node -e '
+            const fs = require("fs");
+            const expected = process.argv[1];
+            const paths = ["packages/core", "packages/casl", "packages/nest", "packages/plugin", "packages/testing"];
+            for (const path of paths) {
+              const value = JSON.parse(fs.readFileSync(`${path}/package.json`, "utf8")).version;
+              if (value !== expected) throw new Error(`${path} is ${value}, expected ${expected}`);
+            }
+          ' "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run format
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:security
+      - run: npm run test:integration
+      - run: npm run test:migration
+      - run: npm run test:concurrency
+      - run: npm audit --audit-level=high
+      - run: npm run build
+      - run: npm run api:check
+      - run: npm run pack:check
+      - run: npm run license:check
+      - name: Reject duplicate versions
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          for package in @better-auth-ac/core @better-auth-ac/casl @better-auth-ac/nest better-auth-ac @better-auth-ac/testing; do
+            if npm view "$package@$version" version >/dev/null 2>&1; then
+              echo "$package@$version already exists" >&2
+              exit 1
+            fi
+          done
+      - name: Publish packages
+        shell: bash
+        run: |
+          channel="${{ steps.version.outputs.channel }}"
+          for path in packages/core packages/casl packages/nest packages/plugin packages/testing; do
+            npm publish "./$path" --access public --provenance --tag "$channel"
+          done
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag

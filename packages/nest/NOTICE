@@ -1,0 +1,9 @@
+better-auth-ac
+Copyright 2026 Jerome Cabugwason
+
+This product was structurally informed by better-auth-iam:
+Copyright 2025 Sean Filimon
+https://github.com/seanfilimon/better-auth-iam
+
+The upstream source is licensed under the Apache License, Version 2.0.
+No upstream production source is copied in the initial release.
