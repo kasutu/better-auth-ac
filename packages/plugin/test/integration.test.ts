@@ -35,11 +35,13 @@ it("creates roles, sets effects, assigns multiple roles, audits, and invalidates
     { name: "Restricted", color: "#993333", rank: 20 },
     "request-2",
   );
-  await service.setRolePermissions(
+  expect(allow.permissions).toEqual([]);
+  const allowWithPermissions = await service.setRolePermissions(
     owner,
     { roleId: allow.id, expectedVersion: 0, effects: [{ key: "order.refund", effect: "ALLOW" }] },
     "request-3",
   );
+  expect(allowWithPermissions.permissions).toEqual([{ key: "order.refund", effect: "ALLOW" }]);
   await service.setRolePermissions(
     owner,
     { roleId: deny.id, expectedVersion: 0, effects: [{ key: "order.refund", effect: "DENY" }] },

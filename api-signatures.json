@@ -2,6 +2,6 @@
   "packages/casl/dist/index.d.ts": "b90dd9f7c4c7c9b953a31876b2665f40255fc74225f7c7bfc6bdbdcf52f7f0de",
   "packages/core/dist/index.d.ts": "d35ccf032ab0d45cd7d8c03eb164021fbc8be1b1d355849ed635ff9b33962e35",
   "packages/nest/dist/index.d.ts": "7c75a54102b6b091da070b62b0a107c1ef91fb2a1a1edd2a0fc064685018a185",
-  "packages/plugin/dist/index.d.ts": "6ab3840b699cb4b3f8b69a469841a0fd5fe760d18e3a5a95e14d287db6001f97",
+  "packages/plugin/dist/index.d.ts": "450bbb1287661ec920bad61c348de1add6ad5a38abcf5a681a13bde0bce010d8",
   "packages/testing/dist/index.d.ts": "1a48cf4c1bb8375682f0a04e13be575b69cead2b4ddb0a1dd034e31ba37178ad"
 }

@@ -496,7 +496,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof roleInput>,
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
       this.require(decisions, "iam.role.manage", actor.isOwner);
@@ -516,7 +516,7 @@ export class IamService {
           version: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: [] };
     });
   }
 
@@ -524,7 +524,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof roleInput> & z.infer<typeof versionedRole>,
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
       this.require(decisions, "iam.role.manage", actor.isOwner);
@@ -539,7 +539,7 @@ export class IamService {
           toVersion: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: await transaction.getRolePermissions(role.id) };
     });
   }
 
@@ -569,7 +569,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof versionedRole> & { effects: RolePermission[] },
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const effects = [...input.effects].sort((a, b) => a.key.localeCompare(b.key));
       assertKnownEffects(this.catalog, effects);
@@ -582,7 +582,9 @@ export class IamService {
       const before = (await transaction.getRolePermissions(target.id)).sort((a, b) =>
         a.key.localeCompare(b.key),
       );
-      if (JSON.stringify(before) === JSON.stringify(effects)) return target;
+      if (JSON.stringify(before) === JSON.stringify(effects)) {
+        return { ...target, permissions: before };
+      }
       const role = await transaction.setRolePermissions(target.id, input.expectedVersion, effects);
       const members = await transaction.listMemberIdsForRole(target.id);
       await transaction.invalidateSessions(members);
@@ -593,7 +595,7 @@ export class IamService {
           toVersion: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: effects };
     });
   }
 

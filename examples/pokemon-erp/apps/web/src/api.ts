@@ -1,4 +1,4 @@
-import { API_ORIGIN } from "./auth-client";
+import { API_ORIGIN, authClient } from "./auth-client";
 
 export async function api<T>(
   path: string,
@@ -15,6 +15,7 @@ export async function api<T>(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
+    if (response.status === 401) await authClient.signOut();
     const error = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new Error(error?.message ?? `${response.status} ${response.statusText}`);
   }
