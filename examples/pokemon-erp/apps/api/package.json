@@ -10,13 +10,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@better-auth-ac/core": "0.2.0",
-    "@better-auth-ac/nest": "0.2.0",
+    "@better-auth-ac/core": "0.3.0",
+    "@better-auth-ac/nest": "0.3.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "better-auth": "^1.6.25",
-    "better-auth-ac": "0.2.0",
+    "better-auth-ac": "0.3.0",
     "better-sqlite3": "12.2.0",
     "express": "^5.1.0",
     "kysely": "^0.29.4",
