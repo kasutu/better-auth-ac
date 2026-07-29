@@ -144,6 +144,35 @@ if (!decision.allowed) {
 }
 ```
 
+### Run the Example
+
+The example requires Node.js 20 or later and npm.
+
+1. Clone the repository and enter its directory:
+
+   ```bash
+   git clone https://github.com/kasutu/better-auth-ac.git
+   cd better-auth-ac
+   ```
+
+2. Install the workspace dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Start the NestJS API and Vite client:
+
+   ```bash
+   npm run example:dev
+   ```
+
+4. Open `http://127.0.0.1:5173`.
+5. Create an account and a factory organization.
+
+The API runs at `http://127.0.0.1:3000`. The example stores its data in
+`examples/pokemon-erp/data/pokemon-erp.sqlite`.
+
 ---
 
 ## Packages
