@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@better-auth-ac/core": "0.1.0",
-    "@better-auth-ac/nest": "0.1.0",
+    "@better-auth-ac/core": "0.2.0",
+    "@better-auth-ac/nest": "0.2.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",

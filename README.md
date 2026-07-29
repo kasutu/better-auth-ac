@@ -92,6 +92,9 @@ export const auth = betterAuth({
   plugins: [
     betterAuthAc({
       catalog,
+      audit: async (event) => {
+        await auditService.record(event);
+      },
       resolveActiveMember: async (session) => {
         return getVerifiedActiveMember(session);
       },
@@ -100,9 +103,10 @@ export const auth = betterAuth({
 });
 ```
 
-The plugin uses the Better Auth database adapter and stores audit events in the same transaction.
-The database adapter must support transactions. Set `transaction: true` for a Kysely database
-configuration. You can pass a custom `IamStore` when you need another storage or audit system.
+The plugin uses the Better Auth database adapter. The database adapter must support transactions.
+Set `transaction: true` for a Kysely database configuration. The plugin calls `audit` inside the
+mutation transaction. Use a durable audit adapter. You can pass a custom `IamStore` when you need
+another storage system.
 
 ### Permission Declaration
 
@@ -262,16 +266,6 @@ IamMemberRole
 
 Member
   iamRoleVersion
-
-IamAudit
-  type
-  actorId
-  organizationId
-  targetId
-  outcome
-  correlationId
-  occurredAt
-  data
 ```
 
 The built-in store uses a role-name reservation and deterministic relation IDs. A custom store must

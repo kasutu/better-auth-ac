@@ -1,6 +1,6 @@
 {
   "name": "@better-auth-ac/casl",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Deterministic CASL rules from better-auth-ac decisions",
   "license": "Apache-2.0",
   "type": "module",
@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth-ac/core": "0.1.0"
+    "@better-auth-ac/core": "0.2.0"
   },
   "peerDependencies": {
     "@casl/ability": "^6.7.0 || ^7.0.0"

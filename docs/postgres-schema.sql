@@ -34,21 +34,7 @@ CREATE TABLE "IamMemberRole" (
 ALTER TABLE member
   ADD COLUMN "iamRoleVersion" integer NULL;
 
-CREATE TABLE "IamAudit" (
-  id text PRIMARY KEY,
-  type text NOT NULL,
-  "actorId" text NOT NULL,
-  "organizationId" text NOT NULL,
-  "targetId" text NOT NULL,
-  outcome text NOT NULL CHECK (outcome = 'SUCCESS'),
-  "correlationId" text NOT NULL,
-  "occurredAt" timestamptz NOT NULL,
-  data jsonb NOT NULL
-);
-
 CREATE INDEX "IamRolePermission_permissionKey_idx"
   ON "IamRolePermission" ("permissionKey");
 CREATE INDEX "IamMemberRole_roleId_idx"
   ON "IamMemberRole" ("roleId");
-CREATE INDEX "IamAudit_organizationId_occurredAt_idx"
-  ON "IamAudit" ("organizationId", "occurredAt" DESC);

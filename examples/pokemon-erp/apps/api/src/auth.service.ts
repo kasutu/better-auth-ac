@@ -91,6 +91,25 @@ function createAuth(
       organization({ teams: { enabled: true } }),
       betterAuthAc({
         catalog,
+        audit: async (event) => {
+          database
+            .prepare(
+              `INSERT INTO iamAudit
+                (id, type, actorId, organizationId, targetId, outcome, correlationId, occurredAt, data)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+              crypto.randomUUID(),
+              event.type,
+              event.actorId,
+              event.organizationId,
+              event.targetId,
+              event.outcome,
+              event.correlationId,
+              event.occurredAt,
+              JSON.stringify(event.data),
+            );
+        },
         resolveActiveMember: async (session) => activeMember(database, session),
         developmentTraces: process.env.NODE_ENV !== "production",
       }),

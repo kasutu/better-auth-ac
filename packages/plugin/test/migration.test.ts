@@ -7,7 +7,6 @@ it("ships normalized constraints and explicit delete rules", () => {
   expect(sql).toContain('UNIQUE ("roleId", "permissionKey")');
   expect(sql).toContain('UNIQUE ("memberId", "roleId")');
   expect(sql).toContain('ADD COLUMN "iamRoleVersion" integer NULL');
-  expect(sql).toContain('CREATE TABLE "IamAudit"');
   expect(sql).toContain("ON DELETE CASCADE");
-  expect(sql).not.toMatch(/comma/i);
+  expect(sql).not.toMatch(/json|comma/i);
 });

@@ -5,11 +5,12 @@ import { organization } from "better-auth/plugins";
 import Database from "better-sqlite3";
 import { SqliteDialect } from "kysely";
 import { defineCatalog } from "@better-auth-ac/core";
-import { betterAuthAc, type ActiveMember } from "../src/index.js";
+import { betterAuthAc, type ActiveMember, type IamAuditEvent } from "../src/index.js";
 
 it("uses Better Auth SQLite for IAM data, audit, versions, and session invalidation", async () => {
   const sqlite = new Database(":memory:");
   let actor: ActiveMember | undefined;
+  const audits: IamAuditEvent[] = [];
   const plugin = betterAuthAc({
     catalog: defineCatalog([
       {
@@ -22,6 +23,9 @@ it("uses Better Auth SQLite for IAM data, audit, versions, and session invalidat
         scope: "organization",
       },
     ]),
+    audit: async (event) => {
+      audits.push(event);
+    },
     resolveActiveMember: async () => actor ?? null,
   });
   const auth = betterAuth({
@@ -181,14 +185,7 @@ it("uses Better Auth SQLite for IAM data, audit, versions, and session invalidat
     ...endpointContext,
     body: { roleId: role.id, expectedVersion: updated.version },
   } as never);
-  expect(
-    (
-      await db.findMany<{ type: string }>({
-        model: "iamAudit",
-        where: [{ field: "organizationId", value: organizationRow.id }],
-      })
-    ).map(({ type }) => type),
-  ).toEqual([
+  expect(audits.map(({ type }) => type)).toEqual([
     "IAM_ROLE_CREATED",
     "IAM_ROLE_PERMISSIONS_CHANGED",
     "IAM_ROLE_UPDATED",
@@ -245,6 +242,7 @@ it("migrates an existing nullable member version safely", async () => {
       organization(),
       betterAuthAc({
         catalog: defineCatalog([]),
+        audit: async () => undefined,
         resolveActiveMember: async () => null,
       }),
     ],
@@ -266,6 +264,7 @@ it("migrates an existing nullable member version safely", async () => {
 it("rejects a Better Auth adapter without real transactions", () => {
   const plugin = betterAuthAc({
     catalog: defineCatalog([]),
+    audit: async () => undefined,
     resolveActiveMember: async () => null,
   });
 

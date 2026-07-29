@@ -91,13 +91,21 @@ export interface IamStore {
   transaction<T>(work: (transaction: IamTransaction) => Promise<T>): Promise<T>;
 }
 
-export interface BetterAuthAcOptions {
+interface BetterAuthAcBaseOptions {
   catalog: PermissionCatalog;
-  store?: IamStore;
   resolveActiveMember(session: unknown): Promise<ActiveMember | null>;
   correlationId?(headers: Headers): string;
   developmentTraces?: boolean;
 }
+
+export type BetterAuthAcOptions = BetterAuthAcBaseOptions &
+  (
+    | { store: IamStore; audit?: never }
+    | {
+        store?: undefined;
+        audit(event: IamAuditEvent): Promise<void> | void;
+      }
+  );
 
 export class IamMutationError extends Error {
   constructor(
@@ -136,7 +144,11 @@ type SessionAdapter = { deleteUserSessions(userId: string): Promise<void> };
 const eq = (field: string, value: Where["value"]): Where => ({ field, value });
 const compoundKey = (...parts: string[]) => JSON.stringify(parts);
 
-function adapterTransaction(adapter: Adapter, sessions: SessionAdapter): IamTransaction {
+function adapterTransaction(
+  adapter: Adapter,
+  sessions: SessionAdapter,
+  audit: (event: IamAuditEvent) => Promise<void> | void,
+): IamTransaction {
   const role = async (roleId: string) =>
     adapter.findOne<IamRole>({ model: "iamRole", where: [eq("id", roleId)] });
   const permissions = async (roleId: string) =>
@@ -352,7 +364,10 @@ function adapterTransaction(adapter: Adapter, sessions: SessionAdapter): IamTran
       }
       return {
         version,
-        roles: await adapterTransaction(adapter, sessions).getMemberRoles(organizationId, memberId),
+        roles: await adapterTransaction(adapter, sessions, audit).getMemberRoles(
+          organizationId,
+          memberId,
+        ),
       };
     },
     getMemberRoleVersion: async (organizationId, memberId) => {
@@ -371,12 +386,7 @@ function adapterTransaction(adapter: Adapter, sessions: SessionAdapter): IamTran
           limit: 10_000,
         })
       ).map(({ memberId }) => memberId),
-    audit: async (event) => {
-      await adapter.create({
-        model: "iamAudit",
-        data: { ...event, occurredAt: new Date(event.occurredAt) },
-      });
-    },
+    audit: async (event) => await audit(event),
     invalidateSessions: async (memberIds) => {
       if (!memberIds.length) return;
       const members = await adapter.findMany<MemberRow>({
@@ -390,14 +400,18 @@ function adapterTransaction(adapter: Adapter, sessions: SessionAdapter): IamTran
   };
 }
 
-function adapterStore(adapter: DBAdapter, sessions: SessionAdapter): IamStore {
+function adapterStore(
+  adapter: DBAdapter,
+  sessions: SessionAdapter,
+  audit: (event: IamAuditEvent) => Promise<void> | void,
+): IamStore {
   if (typeof adapter.options?.adapterConfig.transaction !== "function") {
     throw new Error("better-auth-ac requires a Better Auth database adapter with transactions");
   }
   return {
     transaction: async (work) =>
       await runWithTransaction(adapter, async () =>
-        work(adapterTransaction(await getCurrentAdapter(adapter), sessions)),
+        work(adapterTransaction(await getCurrentAdapter(adapter), sessions, audit)),
       ),
   };
 }
@@ -706,7 +720,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
       if (!service) {
         service = new IamService(
           options.catalog,
-          adapterStore(context.adapter, context.internalAdapter),
+          adapterStore(context.adapter, context.internalAdapter, options.audit!),
         );
       }
     },
@@ -759,18 +773,6 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
       member: {
         fields: {
           iamRoleVersion: { type: "number", required: false },
-        },
-      },
-      iamAudit: {
-        fields: {
-          type: { type: "string" },
-          actorId: { type: "string" },
-          organizationId: { type: "string" },
-          targetId: { type: "string" },
-          outcome: { type: "string" },
-          correlationId: { type: "string" },
-          occurredAt: { type: "date" },
-          data: { type: "json" },
         },
       },
     },

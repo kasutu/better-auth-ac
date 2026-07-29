@@ -18,6 +18,18 @@ export function createDatabase(): Database.Database {
 
 export function ensureExampleSchema(database: Database.Database): void {
   database.exec(`
+    CREATE TABLE IF NOT EXISTS iamAudit (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      actorId TEXT NOT NULL,
+      organizationId TEXT NOT NULL,
+      targetId TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      correlationId TEXT NOT NULL,
+      occurredAt TEXT NOT NULL,
+      data TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS supply (
       id TEXT PRIMARY KEY,
       organizationId TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
