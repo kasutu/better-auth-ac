@@ -30,7 +30,7 @@
     "benchmark": "node packages/core/benchmark/run.mjs",
     "license:check": "node scripts/check-licenses.mjs",
     "pack:check": "npm pack --dry-run --workspace @better-auth-ac/core --workspace @better-auth-ac/casl --workspace @better-auth-ac/nest --workspace better-auth-ac --workspace @better-auth-ac/testing",
-    "example:dev": "npm run dev -w pokemon-erp-api & npm run dev -w pokemon-erp-web",
+    "example:dev": "(cd examples/pokemon-erp/apps/api && npm run dev) & (cd examples/pokemon-erp/apps/web && npm run dev)",
     "example:start": "npm run start -w pokemon-erp-api"
   },
   "devDependencies": {

@@ -154,7 +154,7 @@ if (!decision.allowed) {
 
 ### Run the Example
 
-The example requires Node.js 20 or later and npm.
+The example requires Node.js 20 or later with npm, or Bun.
 
 1. Clone the repository and enter its directory:
 
@@ -169,10 +169,22 @@ The example requires Node.js 20 or later and npm.
    npm install
    ```
 
+   Or use Bun:
+
+   ```bash
+   bun install
+   ```
+
 3. Start the NestJS API and Vite client:
 
    ```bash
    npm run example:dev
+   ```
+
+   Or use Bun:
+
+   ```bash
+   bun run example:dev
    ```
 
 4. Open `http://127.0.0.1:5173`.

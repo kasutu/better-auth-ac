@@ -8,6 +8,13 @@ npm install
 npm run example:dev
 ```
 
+Or use Bun:
+
+```bash
+bun install
+bun run example:dev
+```
+
 Open `http://127.0.0.1:5173`. Create an account, create an organization, and use the owner account
 to configure roles.
 
