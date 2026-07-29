@@ -6,7 +6,7 @@ import { AuthService } from "./auth.service.js";
 import { DATABASE } from "./database.js";
 import { SessionService } from "./session.service.js";
 
-@PermissionGroup("members", "Members")
+@PermissionGroup("members")
 @Controller("api/members")
 export class MembersController {
   constructor(

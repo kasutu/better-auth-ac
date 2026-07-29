@@ -1,7 +1,7 @@
 import { Controller, Get, Post } from "@nestjs/common";
 import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 
-@PermissionGroup("iam", "Access control")
+@PermissionGroup("iam")
 @Controller("api/access")
 export class AccessController {
   @Permission("role.read", {

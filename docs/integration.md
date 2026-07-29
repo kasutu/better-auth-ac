@@ -43,7 +43,7 @@ in one query (or a bounded cached query), and the guard evaluates them with the 
 Permission keys use the same group/leaf composition as Nest controller routes:
 
 ```ts
-@PermissionGroup("inventory", "Inventory")
+@PermissionGroup("inventory")
 @Controller("inventory")
 class InventoryController {
   @Permission("item-types", {
@@ -58,8 +58,9 @@ class InventoryController {
 }
 ```
 
-This declares `inventory.item-types`. A method permission without a controller group is rejected
-during catalog discovery.
+This declares `inventory.item-types`, and the group display label becomes `Inventory`. A method
+permission without a controller group is rejected during catalog discovery. Pass
+`{ name: "Custom label" }` as the second argument only when the derived label is not suitable.
 
 ## AuditService
 

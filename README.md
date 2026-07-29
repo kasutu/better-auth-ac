@@ -108,7 +108,7 @@ The group decorator works like `@Controller()`. The permission decorator works l
 import { Controller, Get } from "@nestjs/common";
 import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 
-@PermissionGroup("inventory", "Inventory")
+@PermissionGroup("inventory")
 @Controller("inventory")
 export class InventoryController {
   @Permission("item-types", {
@@ -123,7 +123,9 @@ export class InventoryController {
 }
 ```
 
-This declaration creates the permission key `inventory.item-types`.
+This declaration creates the permission key `inventory.item-types`. The group key also supplies its
+display label, so `inventory` becomes `Inventory`. Use
+`@PermissionGroup("iam", { name: "Access control" })` only when the derived label is not suitable.
 
 ### Core Evaluation
 

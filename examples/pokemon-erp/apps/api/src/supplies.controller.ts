@@ -4,7 +4,7 @@ import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 import { ErpService } from "./erp.service.js";
 import { SessionService } from "./session.service.js";
 
-@PermissionGroup("supplies", "Supplies")
+@PermissionGroup("supplies")
 @Controller("api/supplies")
 export class SuppliesController {
   constructor(

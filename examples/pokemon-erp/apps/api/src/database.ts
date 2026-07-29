@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { Inject, Injectable } from "@nestjs/common";
@@ -15,7 +16,9 @@ import {
 export const DATABASE = Symbol("pokemon-erp:database");
 
 export function createDatabase(): Database.Database {
-  const path = resolve(process.env.DATABASE_PATH ?? "examples/pokemon-erp/data/pokemon-erp.sqlite");
+  const path = process.env.DATABASE_PATH
+    ? resolve(process.env.DATABASE_PATH)
+    : fileURLToPath(new URL("../../../data/pokemon-erp.sqlite", import.meta.url));
   mkdirSync(dirname(path), { recursive: true });
   const database = new Database(path);
   database.pragma("foreign_keys = ON");

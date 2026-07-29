@@ -32,6 +32,10 @@ export interface PermissionGroupDefinition {
   name: string;
 }
 
+export interface PermissionGroupOptions {
+  name?: string;
+}
+
 export type PermissionLeafDefinition = Omit<PermissionDefinition, "key" | "group">;
 
 export interface VerifiedAuthorizationContext {
@@ -44,8 +48,18 @@ export interface AuthorizationContextResolver {
   resolve(context: ExecutionContext): Promise<VerifiedAuthorizationContext | null>;
 }
 
-export function PermissionGroup(key: string, name = key): ClassDecorator {
-  return SetMetadata(PERMISSION_GROUP_METADATA, Object.freeze({ key, name }));
+function permissionGroupName(key: string): string {
+  return key
+    .split(/[-_.\s]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function PermissionGroup(key: string, options: PermissionGroupOptions = {}): ClassDecorator {
+  return SetMetadata(
+    PERMISSION_GROUP_METADATA,
+    Object.freeze({ key, name: options.name ?? permissionGroupName(key) }),
+  );
 }
 
 export function Permission(key: string, definition: PermissionLeafDefinition): MethodDecorator {

@@ -16,7 +16,7 @@ it("stores a controller group boundary and method leaf like Nest routes", () => 
     action: "refund",
     scope: "organization" as const,
   };
-  @PermissionGroup("order", "Orders")
+  @PermissionGroup("order")
   class Controller {
     @Permission("refund", definition)
     refund(): void {}
@@ -24,10 +24,17 @@ it("stores a controller group boundary and method leaf like Nest routes", () => 
   const reflector = new Reflector();
   expect(reflector.get(PERMISSION_GROUP_METADATA, Controller)).toEqual({
     key: "order",
-    name: "Orders",
+    name: "Order",
   });
   expect(reflector.get(PERMISSION_METADATA, Controller.prototype.refund)).toEqual({
     key: "refund",
     ...definition,
+  });
+
+  @PermissionGroup("iam", { name: "Access control" })
+  class NamedController {}
+  expect(reflector.get(PERMISSION_GROUP_METADATA, NamedController)).toEqual({
+    key: "iam",
+    name: "Access control",
   });
 });
