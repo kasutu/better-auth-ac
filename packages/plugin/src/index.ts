@@ -122,12 +122,6 @@ const effectInput = z.object({
   effect: z.enum(["ALLOW", "DENY"]),
 });
 
-function permissionMap(
-  catalog: PermissionCatalog,
-): Map<string, PermissionCatalog["permissions"][number]> {
-  return new Map(catalog.permissions.map((permission) => [permission.key, permission]));
-}
-
 function effective(
   catalog: PermissionCatalog,
   roles: readonly AssignedRole[],
