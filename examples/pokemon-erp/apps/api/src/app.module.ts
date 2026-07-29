@@ -10,6 +10,8 @@ import { PermissionContextResolver } from "./permission-context.js";
 import { ProductionController } from "./production.controller.js";
 import { SessionService } from "./session.service.js";
 import { SuppliesController } from "./supplies.controller.js";
+import { UpdatesController } from "./updates.controller.js";
+import { UpdatesService } from "./updates.service.js";
 
 @Global()
 @Module({
@@ -19,8 +21,9 @@ import { SuppliesController } from "./supplies.controller.js";
     AuthService,
     SessionService,
     ErpService,
+    UpdatesService,
   ],
-  exports: [DATABASE, SqliteIamStore, AuthService, SessionService, ErpService],
+  exports: [DATABASE, SqliteIamStore, AuthService, SessionService, ErpService, UpdatesService],
 })
 class InfrastructureModule {}
 
@@ -35,6 +38,7 @@ class InfrastructureModule {}
     AccessController,
     MembersController,
     AuditController,
+    UpdatesController,
   ],
 })
 export class AppModule {}

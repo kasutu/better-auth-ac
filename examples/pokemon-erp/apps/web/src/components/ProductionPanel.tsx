@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Can } from "@casl/react";
 import type { ProductionOrder } from "../types";
 import { api } from "../api";
+import { useRealtime } from "../realtime";
 
 export function ProductionPanel() {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
@@ -19,20 +20,27 @@ export function ProductionPanel() {
   useEffect(() => {
     void load();
   }, []);
+  useRealtime("production", () => void load());
 
   async function run(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const order: ProductionOrder = {
+      id: crypto.randomUUID(),
+      product: String(form.get("product")),
+      quantity: Number(form.get("quantity")),
+      status: "COMPLETED",
+      createdAt: new Date().toISOString(),
+    };
+    setOrders((value) => [order, ...value]);
     try {
-      await api("/api/production", {
+      const saved = await api<ProductionOrder>("/api/production", {
         method: "POST",
-        body: {
-          product: form.get("product"),
-          quantity: Number(form.get("quantity")),
-        },
+        body: order,
       });
-      await load();
+      setOrders((value) => value.map((item) => (item.id === order.id ? saved : item)));
     } catch (value) {
+      setOrders((value) => value.filter(({ id }) => id !== order.id));
       setError(value instanceof Error ? value.message : "Production failed");
     }
   }

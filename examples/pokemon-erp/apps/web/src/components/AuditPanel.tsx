@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { AuditEvent } from "../types";
+import { useRealtime } from "../realtime";
 
 export function AuditPanel() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    void api<AuditEvent[]>("/api/audit")
+  function load() {
+    return api<AuditEvent[]>("/api/audit")
       .then(setEvents)
       .catch((value: unknown) =>
         setError(value instanceof Error ? value.message : "Could not load audit events"),
       );
+  }
+
+  useEffect(() => {
+    void load();
   }, []);
+  useRealtime("audit", () => void load());
 
   return (
     <section>

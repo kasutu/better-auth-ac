@@ -11,6 +11,7 @@ import { ProductionPanel } from "./components/ProductionPanel";
 import { RolesPanel } from "./components/RolesPanel";
 import { MembersPanel } from "./components/MembersPanel";
 import { AuditPanel } from "./components/AuditPanel";
+import { useRealtime } from "./realtime";
 
 type Tab = "supplies" | "production" | "roles" | "members" | "audit";
 
@@ -38,6 +39,7 @@ export default function App() {
   useEffect(() => {
     if (activeOrganizationId) void loadAbility();
   }, [activeOrganizationId]);
+  useRealtime("ability", () => void loadAbility(), Boolean(activeOrganizationId));
 
   const tabs = useMemo(
     () =>

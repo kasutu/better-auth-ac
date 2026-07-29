@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Can } from "@casl/react";
 import { api } from "../api";
 import type { Catalog, Role } from "../types";
+import { useRealtime } from "../realtime";
 
 type Effect = "ALLOW" | "DENY" | "NONE";
 
@@ -21,7 +22,11 @@ export function RolesPanel() {
       ]);
       setCatalog(catalogValue);
       setRoles(roleValue.roles);
-      setSelectedId(preferredId ?? roleValue.roles[0]?.id ?? "");
+      setSelectedId(
+        preferredId && roleValue.roles.some(({ id }) => id === preferredId)
+          ? preferredId
+          : (roleValue.roles[0]?.id ?? ""),
+      );
       setError("");
     } catch (value) {
       setError(value instanceof Error ? value.message : "Could not load roles");
@@ -31,6 +36,7 @@ export function RolesPanel() {
   useEffect(() => {
     void load();
   }, []);
+  useRealtime("roles", () => void load(selectedId));
 
   useEffect(() => {
     setEffects(
@@ -46,56 +52,105 @@ export function RolesPanel() {
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const role = await api<Role>("/api/auth/iam/roles/create", {
-      method: "POST",
-      body: {
-        name: form.get("name"),
-        color: form.get("color"),
-        rank: Number(form.get("rank")),
-      },
-    });
-    await load(role.id);
+    const role: Role = {
+      id: crypto.randomUUID(),
+      organizationId: "",
+      name: String(form.get("name")),
+      color: String(form.get("color")),
+      rank: Number(form.get("rank")),
+      isProtected: false,
+      version: 0,
+      permissions: [],
+    };
+    setRoles((value) => [...value, role].sort((a, b) => a.rank - b.rank));
+    setSelectedId(role.id);
+    try {
+      const saved = await api<Role>("/api/auth/iam/roles/create", {
+        method: "POST",
+        body: role,
+      });
+      setRoles((value) => value.map((item) => (item.id === role.id ? saved : item)));
+      setSelectedId(saved.id);
+    } catch (value) {
+      setRoles((items) => items.filter(({ id }) => id !== role.id));
+      setSelectedId((id) => (id === role.id ? "" : id));
+      setError(value instanceof Error ? value.message : "Could not create role");
+    }
   }
 
   async function update(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    const role = await api<Role>("/api/auth/iam/roles/update", {
-      method: "POST",
-      body: {
-        roleId: selected.id,
-        expectedVersion: selected.version,
-        name: form.get("name"),
-        color: form.get("color"),
-        rank: Number(form.get("rank")),
-      },
-    });
-    await load(role.id);
+    const previous = selected;
+    const optimistic = {
+      ...selected,
+      name: String(form.get("name")),
+      color: String(form.get("color")),
+      rank: Number(form.get("rank")),
+      version: selected.version + 1,
+    };
+    setRoles((value) => value.map((role) => (role.id === selected.id ? optimistic : role)));
+    try {
+      const saved = await api<Role>("/api/auth/iam/roles/update", {
+        method: "POST",
+        body: {
+          roleId: selected.id,
+          expectedVersion: selected.version,
+          name: optimistic.name,
+          color: optimistic.color,
+          rank: optimistic.rank,
+        },
+      });
+      setRoles((value) => value.map((role) => (role.id === saved.id ? saved : role)));
+    } catch (value) {
+      setRoles((items) => items.map((role) => (role.id === previous.id ? previous : role)));
+      setError(value instanceof Error ? value.message : "Could not update role");
+    }
   }
 
   async function saveEffects() {
     if (!selected) return;
-    const role = await api<Role>("/api/auth/iam/roles/set-permissions", {
-      method: "POST",
-      body: {
-        roleId: selected.id,
-        expectedVersion: selected.version,
-        effects: Object.entries(effects).flatMap(([key, effect]) =>
-          effect === "NONE" ? [] : [{ key, effect }],
-        ),
-      },
-    });
-    await load(role.id);
+    const previous = selected;
+    const permissions = Object.entries(effects).flatMap(([key, effect]) =>
+      effect === "NONE" ? [] : [{ key, effect }],
+    );
+    setRoles((value) =>
+      value.map((role) =>
+        role.id === selected.id ? { ...role, permissions, version: role.version + 1 } : role,
+      ),
+    );
+    try {
+      const saved = await api<Role>("/api/auth/iam/roles/set-permissions", {
+        method: "POST",
+        body: {
+          roleId: selected.id,
+          expectedVersion: selected.version,
+          effects: permissions,
+        },
+      });
+      setRoles((value) => value.map((role) => (role.id === saved.id ? saved : role)));
+    } catch (value) {
+      setRoles((items) => items.map((role) => (role.id === previous.id ? previous : role)));
+      setError(value instanceof Error ? value.message : "Could not save permissions");
+    }
   }
 
   async function remove() {
     if (!selected || !window.confirm(`Delete ${selected.name}?`)) return;
-    await api("/api/auth/iam/roles/delete", {
-      method: "POST",
-      body: { roleId: selected.id, expectedVersion: selected.version },
-    });
-    await load();
+    const previous = roles;
+    setRoles((value) => value.filter(({ id }) => id !== selected.id));
+    setSelectedId(roles.find(({ id }) => id !== selected.id)?.id ?? "");
+    try {
+      await api("/api/auth/iam/roles/delete", {
+        method: "POST",
+        body: { roleId: selected.id, expectedVersion: selected.version },
+      });
+    } catch (value) {
+      setRoles(previous);
+      setSelectedId(selected.id);
+      setError(value instanceof Error ? value.message : "Could not delete role");
+    }
   }
 
   return (
