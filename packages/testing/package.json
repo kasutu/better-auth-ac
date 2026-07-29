@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@better-auth-ac/core": "0.1.0",
-    "better-auth-ac": "0.1.0"
+    "better-auth-ac": "0.2.0"
   },
   "engines": {
     "node": ">=20"

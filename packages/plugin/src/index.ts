@@ -1,6 +1,7 @@
-import type { BetterAuthPlugin } from "better-auth";
+import type { BetterAuthPlugin, DBAdapter, DBTransactionAdapter, Where } from "better-auth";
 import type { BetterAuthClientPlugin } from "better-auth/client";
 import { APIError, createAuthEndpoint, sessionMiddleware } from "better-auth/api";
+import { getCurrentAdapter, runWithTransaction } from "@better-auth/core/context";
 import * as z from "zod";
 import {
   assertKnownEffects,
@@ -92,7 +93,7 @@ export interface IamStore {
 
 export interface BetterAuthAcOptions {
   catalog: PermissionCatalog;
-  store: IamStore;
+  store?: IamStore;
   resolveActiveMember(session: unknown): Promise<ActiveMember | null>;
   correlationId?(headers: Headers): string;
   developmentTraces?: boolean;
@@ -121,6 +122,285 @@ const effectInput = z.object({
   key: z.string().min(1),
   effect: z.enum(["ALLOW", "DENY"]),
 });
+
+type Adapter = DBAdapter | DBTransactionAdapter;
+type MemberRoleRow = { memberId: string; roleId: string };
+type MemberRow = {
+  id: string;
+  userId: string;
+  organizationId: string;
+  iamRoleVersion?: number | null;
+};
+type SessionAdapter = { deleteUserSessions(userId: string): Promise<void> };
+
+const eq = (field: string, value: Where["value"]): Where => ({ field, value });
+const compoundKey = (...parts: string[]) => JSON.stringify(parts);
+
+function adapterTransaction(adapter: Adapter, sessions: SessionAdapter): IamTransaction {
+  const role = async (roleId: string) =>
+    adapter.findOne<IamRole>({ model: "iamRole", where: [eq("id", roleId)] });
+  const permissions = async (roleId: string) =>
+    (
+      await adapter.findMany<{ permissionKey: string; effect: PermissionEffect }>({
+        model: "iamRolePermission",
+        where: [eq("roleId", roleId)],
+        limit: 10_000,
+      })
+    ).map(({ permissionKey: key, effect }) => ({ key, effect }));
+  const conflict = (): never => {
+    throw new IamMutationError("Stale version", "CONFLICT");
+  };
+
+  return {
+    listRoles: (organizationId) =>
+      adapter.findMany<IamRole>({
+        model: "iamRole",
+        where: [eq("organizationId", organizationId)],
+        limit: 10_000,
+      }),
+    getRole: async (organizationId, roleId) =>
+      adapter.findOne<IamRole>({
+        model: "iamRole",
+        where: [eq("id", roleId), eq("organizationId", organizationId)],
+      }),
+    createRole: async (input) => {
+      if (
+        await adapter.findOne({
+          model: "iamRole",
+          where: [eq("organizationId", input.organizationId), eq("name", input.name)],
+        })
+      ) {
+        throw new IamMutationError("Duplicate role name", "CONFLICT");
+      }
+      const now = new Date();
+      const created = await adapter.create<Omit<IamRole, "id">, IamRole>({
+        model: "iamRole",
+        data: {
+          ...input,
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      try {
+        await adapter.create({
+          model: "iamRoleName",
+          data: {
+            id: compoundKey(input.organizationId, input.name),
+            roleId: created.id,
+          },
+          forceAllowId: true,
+        });
+      } catch {
+        throw new IamMutationError("Duplicate role name", "CONFLICT");
+      }
+      return created;
+    },
+    updateRole: async (roleId, expectedVersion, patch) => {
+      const current = await role(roleId);
+      if (!current) throw new IamMutationError("Role not found", "NOT_FOUND");
+      const renamed = current.name !== patch.name;
+      if (renamed) {
+        const duplicate = await adapter.findOne<IamRole>({
+          model: "iamRole",
+          where: [eq("organizationId", current.organizationId), eq("name", patch.name)],
+        });
+        if (duplicate && duplicate.id !== roleId) {
+          throw new IamMutationError("Duplicate role name", "CONFLICT");
+        }
+      }
+      if (renamed) {
+        try {
+          await adapter.create({
+            model: "iamRoleName",
+            data: {
+              id: compoundKey(current.organizationId, patch.name),
+              roleId,
+            },
+            forceAllowId: true,
+          });
+        } catch {
+          throw new IamMutationError("Duplicate role name", "CONFLICT");
+        }
+      }
+      const updated = await adapter.incrementOne<IamRole>({
+        model: "iamRole",
+        where: [eq("id", roleId), eq("version", expectedVersion)],
+        increment: { version: 1 },
+        set: {
+          ...patch,
+          updatedAt: new Date(),
+        },
+      });
+      if (updated && renamed) {
+        await adapter.delete({
+          model: "iamRoleName",
+          where: [eq("id", compoundKey(current.organizationId, current.name))],
+        });
+      }
+      return updated ?? conflict();
+    },
+    deleteRole: async (roleId, expectedVersion) => {
+      const deleted = await adapter.consumeOne<IamRole>({
+        model: "iamRole",
+        where: [eq("id", roleId), eq("version", expectedVersion)],
+      });
+      if (!deleted) conflict();
+    },
+    getRolePermissions: permissions,
+    setRolePermissions: async (roleId, expectedVersion, effects) => {
+      const updated = await adapter.incrementOne<IamRole>({
+        model: "iamRole",
+        where: [eq("id", roleId), eq("version", expectedVersion)],
+        increment: { version: 1 },
+        set: { updatedAt: new Date() },
+      });
+      if (!updated) conflict();
+      await adapter.deleteMany({
+        model: "iamRolePermission",
+        where: [eq("roleId", roleId)],
+      });
+      for (const { key: permissionKey, effect } of effects) {
+        await adapter.create({
+          model: "iamRolePermission",
+          data: {
+            id: compoundKey(roleId, permissionKey),
+            roleId,
+            permissionKey,
+            effect,
+          },
+          forceAllowId: true,
+        });
+      }
+      return updated ?? conflict();
+    },
+    getMemberRoles: async (organizationId, memberId) => {
+      const member = await adapter.findOne<MemberRow>({
+        model: "member",
+        where: [eq("id", memberId), eq("organizationId", organizationId)],
+      });
+      if (!member) throw new IamMutationError("Member not found", "NOT_FOUND");
+      const assignments = await adapter.findMany<MemberRoleRow>({
+        model: "iamMemberRole",
+        where: [eq("memberId", memberId)],
+        limit: 100,
+      });
+      if (!assignments.length) return [];
+      const roles = await adapter.findMany<IamRole>({
+        model: "iamRole",
+        where: [
+          eq("organizationId", organizationId),
+          { field: "id", operator: "in", value: assignments.map(({ roleId }) => roleId) },
+        ],
+        limit: 100,
+      });
+      return Promise.all(
+        roles.map(async ({ id, name, rank }) => ({
+          id,
+          organizationId,
+          name,
+          rank,
+          permissions: await permissions(id),
+        })),
+      );
+    },
+    setMemberRoles: async (organizationId, memberId, expectedVersion, roleIds) => {
+      const member = await adapter.findOne<MemberRow>({
+        model: "member",
+        where: [eq("id", memberId), eq("organizationId", organizationId)],
+      });
+      if (!member) throw new IamMutationError("Member not found", "NOT_FOUND");
+      let version: number;
+      if (member.iamRoleVersion == null) {
+        if (
+          expectedVersion !== 0 ||
+          (await adapter.updateMany({
+            model: "member",
+            where: [
+              eq("id", memberId),
+              eq("organizationId", organizationId),
+              eq("iamRoleVersion", null),
+            ],
+            update: { iamRoleVersion: 1 },
+          })) !== 1
+        ) {
+          conflict();
+        }
+        version = 1;
+      } else {
+        const updated = await adapter.incrementOne<MemberRow>({
+          model: "member",
+          where: [
+            eq("id", memberId),
+            eq("organizationId", organizationId),
+            eq("iamRoleVersion", expectedVersion),
+          ],
+          increment: { iamRoleVersion: 1 },
+        });
+        version = updated?.iamRoleVersion ?? conflict();
+      }
+      await adapter.deleteMany({
+        model: "iamMemberRole",
+        where: [eq("memberId", memberId)],
+      });
+      for (const roleId of roleIds) {
+        await adapter.create({
+          model: "iamMemberRole",
+          data: { id: compoundKey(memberId, roleId), memberId, roleId },
+          forceAllowId: true,
+        });
+      }
+      return {
+        version,
+        roles: await adapterTransaction(adapter, sessions).getMemberRoles(organizationId, memberId),
+      };
+    },
+    getMemberRoleVersion: async (organizationId, memberId) => {
+      const member = await adapter.findOne<MemberRow>({
+        model: "member",
+        where: [eq("id", memberId), eq("organizationId", organizationId)],
+      });
+      if (!member) return 0;
+      return member.iamRoleVersion ?? 0;
+    },
+    listMemberIdsForRole: async (roleId) =>
+      (
+        await adapter.findMany<MemberRoleRow>({
+          model: "iamMemberRole",
+          where: [eq("roleId", roleId)],
+          limit: 10_000,
+        })
+      ).map(({ memberId }) => memberId),
+    audit: async (event) => {
+      await adapter.create({
+        model: "iamAudit",
+        data: { ...event, occurredAt: new Date(event.occurredAt) },
+      });
+    },
+    invalidateSessions: async (memberIds) => {
+      if (!memberIds.length) return;
+      const members = await adapter.findMany<MemberRow>({
+        model: "member",
+        where: [{ field: "id", operator: "in", value: [...memberIds] }],
+        limit: memberIds.length,
+      });
+      const userIds = [...new Set(members.map(({ userId }) => userId))];
+      await Promise.all(userIds.map((userId) => sessions.deleteUserSessions(userId)));
+    },
+  };
+}
+
+function adapterStore(adapter: DBAdapter, sessions: SessionAdapter): IamStore {
+  if (typeof adapter.options?.adapterConfig.transaction !== "function") {
+    throw new Error("better-auth-ac requires a Better Auth database adapter with transactions");
+  }
+  return {
+    transaction: async (work) =>
+      await runWithTransaction(adapter, async () =>
+        work(adapterTransaction(await getCurrentAdapter(adapter), sessions)),
+      ),
+  };
+}
 
 function effective(
   catalog: PermissionCatalog,
@@ -401,7 +681,11 @@ function toApiError(error: unknown): never {
 }
 
 export function betterAuthAc(options: BetterAuthAcOptions) {
-  const service = new IamService(options.catalog, options.store);
+  let service = options.store ? new IamService(options.catalog, options.store) : undefined;
+  const iam = () => {
+    if (!service) throw new Error("better-auth-ac has not been initialized");
+    return service;
+  };
   const actor = async (session: unknown) => {
     const active = await options.resolveActiveMember(session);
     if (!active) throw new IamMutationError("No active organization member", "UNAUTHENTICATED");
@@ -418,6 +702,14 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
 
   return {
     id: "better-auth-ac",
+    init(context) {
+      if (!service) {
+        service = new IamService(
+          options.catalog,
+          adapterStore(context.adapter, context.internalAdapter),
+        );
+      }
+    },
     schema: {
       iamRole: {
         fields: {
@@ -432,6 +724,14 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
           version: { type: "number" },
           createdAt: { type: "date" },
           updatedAt: { type: "date" },
+        },
+      },
+      iamRoleName: {
+        fields: {
+          roleId: {
+            type: "string",
+            references: { model: "iamRole", field: "id", onDelete: "cascade" },
+          },
         },
       },
       iamRolePermission: {
@@ -456,6 +756,23 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
           },
         },
       },
+      member: {
+        fields: {
+          iamRoleVersion: { type: "number", required: false },
+        },
+      },
+      iamAudit: {
+        fields: {
+          type: { type: "string" },
+          actorId: { type: "string" },
+          organizationId: { type: "string" },
+          targetId: { type: "string" },
+          outcome: { type: "string" },
+          correlationId: { type: "string" },
+          occurredAt: { type: "date" },
+          data: { type: "json" },
+        },
+      },
     },
     endpoints: {
       iamCatalog: createAuthEndpoint(
@@ -471,7 +788,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         { method: "GET", use: [sessionMiddleware] },
         async (ctx) => {
           try {
-            return ctx.json({ roles: await service.listRoles(await actor(ctx.context.session)) });
+            return ctx.json({ roles: await iam().listRoles(await actor(ctx.context.session)) });
           } catch (error) {
             toApiError(error);
           }
@@ -483,7 +800,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.createRole(
+              await iam().createRole(
                 await actor(ctx.context.session),
                 ctx.body,
                 correlation(ctx.headers),
@@ -500,7 +817,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.updateRole(
+              await iam().updateRole(
                 await actor(ctx.context.session),
                 ctx.body,
                 correlation(ctx.headers),
@@ -516,7 +833,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         { method: "POST", body: versionedRole, use: [sessionMiddleware] },
         async (ctx) => {
           try {
-            await service.deleteRole(
+            await iam().deleteRole(
               await actor(ctx.context.session),
               ctx.body,
               correlation(ctx.headers),
@@ -537,7 +854,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.setRolePermissions(
+              await iam().setRolePermissions(
                 await actor(ctx.context.session),
                 ctx.body,
                 correlation(ctx.headers),
@@ -562,7 +879,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.setMemberRoles(
+              await iam().setMemberRoles(
                 await actor(ctx.context.session),
                 ctx.body,
                 correlation(ctx.headers),
@@ -583,7 +900,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.memberRoles(await actor(ctx.context.session), ctx.query.memberId),
+              await iam().memberRoles(await actor(ctx.context.session), ctx.query.memberId),
             );
           } catch (error) {
             toApiError(error);
@@ -596,7 +913,7 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
         async (ctx) => {
           try {
             return ctx.json(
-              await service.ability(
+              await iam().ability(
                 await actor(ctx.context.session),
                 options.developmentTraces === true,
               ),

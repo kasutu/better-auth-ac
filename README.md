@@ -43,7 +43,7 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Server plugin**: The plugin adds schemas and authenticated IAM endpoints.
 - **Client plugin**: The client infers the server endpoint types.
 - **Verified context**: The plugin gets the organization and member from the session.
-- **Transactions**: The host store applies each mutation in one transaction.
+- **Transactions**: The plugin reuses the configured Better Auth database transaction.
 - **Session invalidation**: Permission and role changes invalidate affected sessions.
 
 ### CASL Output
@@ -84,11 +84,14 @@ import { betterAuth } from "better-auth";
 import { betterAuthAc } from "better-auth-ac";
 
 export const auth = betterAuth({
-  database,
+  database: {
+    dialect,
+    type: "postgres",
+    transaction: true,
+  },
   plugins: [
     betterAuthAc({
       catalog,
-      store,
       resolveActiveMember: async (session) => {
         return getVerifiedActiveMember(session);
       },
@@ -97,8 +100,9 @@ export const auth = betterAuth({
 });
 ```
 
-The `store` must implement `IamStore`. It must keep mutations, audit delivery, and session
-invalidation in one transaction.
+The plugin uses the Better Auth database adapter and stores audit events in the same transaction.
+The database adapter must support transactions. Set `transaction: true` for a Kysely database
+configuration. You can pass a custom `IamStore` when you need another storage or audit system.
 
 ### Permission Declaration
 
@@ -241,18 +245,37 @@ IamRole
   createdAt
   updatedAt
 
+IamRoleName
+  id
+  roleId
+
 IamRolePermission
+  id
   roleId
   permissionKey
   effect
 
 IamMemberRole
+  id
   memberId
   roleId
+
+Member
+  iamRoleVersion
+
+IamAudit
+  type
+  actorId
+  organizationId
+  targetId
+  outcome
+  correlationId
+  occurredAt
+  data
 ```
 
-The database must enforce unique role names in each organization. It must also enforce both
-role-permission and member-role compound keys.
+The built-in store uses a role-name reservation and deterministic relation IDs. A custom store must
+enforce unique role names, role-permission pairs, and member-role pairs.
 
 ---
 

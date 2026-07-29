@@ -3,7 +3,7 @@ import { BetterAuthAcModule } from "@better-auth-ac/nest";
 import { AccessController } from "./access.controller.js";
 import { AuditController } from "./audit.controller.js";
 import { AuthService } from "./auth.service.js";
-import { createDatabase, DATABASE, SqliteIamStore } from "./database.js";
+import { createDatabase, DATABASE } from "./database.js";
 import { ErpService } from "./erp.service.js";
 import { MembersController } from "./members.controller.js";
 import { PermissionContextResolver } from "./permission-context.js";
@@ -17,13 +17,12 @@ import { UpdatesService } from "./updates.service.js";
 @Module({
   providers: [
     { provide: DATABASE, useFactory: createDatabase },
-    SqliteIamStore,
     AuthService,
     SessionService,
     ErpService,
     UpdatesService,
   ],
-  exports: [DATABASE, SqliteIamStore, AuthService, SessionService, ErpService, UpdatesService],
+  exports: [DATABASE, AuthService, SessionService, ErpService, UpdatesService],
 })
 class InfrastructureModule {}
 
