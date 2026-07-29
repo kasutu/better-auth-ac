@@ -12,6 +12,7 @@ import {
   type IamStore,
   type IamTransaction,
 } from "better-auth-ac";
+import { UpdatesService } from "./updates.service.js";
 
 export const DATABASE = Symbol("pokemon-erp:database");
 
@@ -98,15 +99,22 @@ function toRole(row: RoleRow): IamRole {
 export class SqliteIamStore implements IamStore {
   private queue = Promise.resolve();
 
-  constructor(@Inject(DATABASE) private readonly database: Database.Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly database: Database.Database,
+    @Inject(UpdatesService) private readonly updates: UpdatesService,
+  ) {}
 
   transaction<T>(work: (transaction: IamTransaction) => Promise<T>): Promise<T> {
     // ponytail: one writer queue fits this SQLite demo; use a database pool for production.
     const result = this.queue.then(async () => {
+      const changedOrganizations = new Set<string>();
       this.database.exec("BEGIN IMMEDIATE");
       try {
-        const value = await work(this.api());
+        const value = await work(this.api(changedOrganizations));
         this.database.exec("COMMIT");
+        for (const organizationId of changedOrganizations) {
+          this.updates.publish(organizationId, ["roles", "members", "audit", "ability"]);
+        }
         return value;
       } catch (error) {
         this.database.exec("ROLLBACK");
@@ -135,7 +143,7 @@ export class SqliteIamStore implements IamStore {
     for (const roleId of roleIds) insert.run(randomUUID(), memberId, roleId);
   }
 
-  private api(): IamTransaction {
+  private api(changedOrganizations?: Set<string>): IamTransaction {
     return {
       listRoles: async (organizationId) =>
         (
@@ -308,6 +316,7 @@ export class SqliteIamStore implements IamStore {
             event.occurredAt,
             JSON.stringify(event.data),
           );
+        changedOrganizations?.add(event.organizationId);
       },
       invalidateSessions: async (memberIds) => {
         if (!memberIds.length) return;

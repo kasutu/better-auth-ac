@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 import { ErpService } from "./erp.service.js";
 import { SessionService } from "./session.service.js";
+import { UpdatesService } from "./updates.service.js";
 
 @PermissionGroup("production")
 @Controller("api/production")
@@ -10,6 +11,7 @@ export class ProductionController {
   constructor(
     @Inject(ErpService) private readonly erp: ErpService,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(UpdatesService) private readonly updates: UpdatesService,
   ) {}
 
   @Permission("read", {
@@ -35,10 +37,12 @@ export class ProductionController {
   @Post()
   async run(@Req() request: Request, @Body() body: { product?: string; quantity?: number }) {
     const actor = await this.sessions.active(request);
-    return this.erp.runProduction(
+    const order = this.erp.runProduction(
       actor.organizationId,
       body.product ?? "",
       Number(body.quantity ?? 0),
     );
+    this.updates.publish(actor.organizationId, ["production", "supplies"]);
+    return order;
   }
 }

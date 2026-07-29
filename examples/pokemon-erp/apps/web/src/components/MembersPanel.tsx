@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { authClient } from "../auth-client";
 import { api } from "../api";
 import type { Member, MemberRoles, Role } from "../types";
+import { useRealtime } from "../realtime";
+
+const MEMBER_TOPICS = ["members", "roles"] as const;
 
 export function MembersPanel() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -34,9 +37,9 @@ export function MembersPanel() {
     void load();
   }, []);
 
-  useEffect(() => {
+  function loadMemberRoles() {
     if (!selectedMemberId) return;
-    void api<MemberRoles>(
+    return api<MemberRoles>(
       `/api/auth/iam/member/roles?memberId=${encodeURIComponent(selectedMemberId)}`,
     )
       .then((value) => {
@@ -46,33 +49,56 @@ export function MembersPanel() {
       .catch((value: unknown) =>
         setError(value instanceof Error ? value.message : "Could not load member roles"),
       );
+  }
+
+  useEffect(() => {
+    void loadMemberRoles();
   }, [selectedMemberId]);
+  useRealtime(MEMBER_TOPICS, () => {
+    void load();
+    void loadMemberRoles();
+  });
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const element = event.currentTarget;
+    const form = new FormData(element);
+    const email = String(form.get("email"));
+    const member: Member = {
+      id: crypto.randomUUID(),
+      userId: "",
+      role: "member",
+      user: { name: email, email },
+    };
+    setMembers((value) => [...value, member]);
     try {
       await api("/api/members", {
         method: "POST",
-        body: { email: form.get("email") },
+        body: { email },
       });
-      event.currentTarget.reset();
+      element.reset();
       await load();
     } catch (value) {
+      setMembers((value) => value.filter(({ id }) => id !== member.id));
       setError(value instanceof Error ? value.message : "Could not add member");
     }
   }
 
   async function save() {
-    await api("/api/auth/iam/members/set-roles", {
-      method: "POST",
-      body: {
-        memberId: selectedMemberId,
-        roleIds: selectedRoleIds,
-        expectedVersion: version,
-      },
-    });
     setVersion((value) => value + 1);
+    try {
+      await api("/api/auth/iam/members/set-roles", {
+        method: "POST",
+        body: {
+          memberId: selectedMemberId,
+          roleIds: selectedRoleIds,
+          expectedVersion: version,
+        },
+      });
+    } catch (value) {
+      setVersion((current) => current - 1);
+      setError(value instanceof Error ? value.message : "Could not save member roles");
+    }
   }
 
   return (

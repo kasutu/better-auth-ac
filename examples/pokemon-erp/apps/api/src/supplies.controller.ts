@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 import { ErpService } from "./erp.service.js";
 import { SessionService } from "./session.service.js";
+import { UpdatesService } from "./updates.service.js";
 
 @PermissionGroup("supplies")
 @Controller("api/supplies")
@@ -10,6 +11,7 @@ export class SuppliesController {
   constructor(
     @Inject(ErpService) private readonly erp: ErpService,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(UpdatesService) private readonly updates: UpdatesService,
   ) {}
 
   @Permission("read", {
@@ -39,12 +41,14 @@ export class SuppliesController {
     body: { name?: string; category?: string; quantity?: number; reorderLevel?: number },
   ) {
     const actor = await this.sessions.active(request);
-    return this.erp.createSupply(actor.organizationId, {
+    const supply = this.erp.createSupply(actor.organizationId, {
       name: body.name ?? "",
       category: body.category ?? "",
       quantity: Number(body.quantity ?? 0),
       reorderLevel: Number(body.reorderLevel ?? 0),
     });
+    this.updates.publish(actor.organizationId, ["supplies"]);
+    return supply;
   }
 
   @Permission("adjust", {
@@ -61,6 +65,8 @@ export class SuppliesController {
     @Body() body: { change?: number },
   ) {
     const actor = await this.sessions.active(request);
-    return this.erp.adjustStock(actor.organizationId, id, Number(body.change ?? 0));
+    const supply = this.erp.adjustStock(actor.organizationId, id, Number(body.change ?? 0));
+    this.updates.publish(actor.organizationId, ["supplies"]);
+    return supply;
   }
 }

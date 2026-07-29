@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Can } from "@casl/react";
 import type { Supply } from "../types";
 import { api } from "../api";
+import { useRealtime } from "../realtime";
 
 export function SuppliesPanel() {
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -19,26 +20,48 @@ export function SuppliesPanel() {
   useEffect(() => {
     void load();
   }, []);
+  useRealtime("supplies", () => void load());
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await api("/api/supplies", {
-      method: "POST",
-      body: {
-        name: form.get("name"),
-        category: form.get("category"),
-        quantity: Number(form.get("quantity")),
-        reorderLevel: Number(form.get("reorderLevel")),
-      },
-    });
-    event.currentTarget.reset();
-    await load();
+    const element = event.currentTarget;
+    const form = new FormData(element);
+    const supply: Supply = {
+      id: crypto.randomUUID(),
+      name: String(form.get("name")),
+      category: String(form.get("category")),
+      quantity: Number(form.get("quantity")),
+      reorderLevel: Number(form.get("reorderLevel")),
+    };
+    setSupplies((value) => [...value, supply].sort((a, b) => a.name.localeCompare(b.name)));
+    element.reset();
+    try {
+      const saved = await api<Supply>("/api/supplies", { method: "POST", body: supply });
+      setSupplies((value) => value.map((item) => (item.id === supply.id ? saved : item)));
+    } catch (value) {
+      setSupplies((items) => items.filter(({ id }) => id !== supply.id));
+      setError(value instanceof Error ? value.message : "Could not add supply");
+    }
   }
 
   async function adjust(id: string, change: number) {
-    await api(`/api/supplies/${id}/stock`, { method: "PATCH", body: { change } });
-    await load();
+    const previous = supplies.find((supply) => supply.id === id);
+    if (!previous) return;
+    setSupplies((value) =>
+      value.map((supply) =>
+        supply.id === id ? { ...supply, quantity: supply.quantity + change } : supply,
+      ),
+    );
+    try {
+      const saved = await api<Supply>(`/api/supplies/${id}/stock`, {
+        method: "PATCH",
+        body: { change },
+      });
+      setSupplies((value) => value.map((supply) => (supply.id === id ? saved : supply)));
+    } catch (value) {
+      setSupplies((items) => items.map((supply) => (supply.id === id ? previous : supply)));
+      setError(value instanceof Error ? value.message : "Could not adjust stock");
+    }
   }
 
   return (
@@ -67,7 +90,11 @@ export function SuppliesPanel() {
                   <button type="button" onClick={() => void adjust(supply.id, 1)}>
                     +1
                   </button>
-                  <button type="button" onClick={() => void adjust(supply.id, -1)}>
+                  <button
+                    type="button"
+                    disabled={supply.quantity === 0}
+                    onClick={() => void adjust(supply.id, -1)}
+                  >
                     -1
                   </button>
                 </Can>

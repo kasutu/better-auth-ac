@@ -5,6 +5,7 @@ import { Permission, PermissionGroup } from "@better-auth-ac/nest";
 import { AuthService } from "./auth.service.js";
 import { DATABASE } from "./database.js";
 import { SessionService } from "./session.service.js";
+import { UpdatesService } from "./updates.service.js";
 
 @PermissionGroup("members")
 @Controller("api/members")
@@ -13,6 +14,7 @@ export class MembersController {
     @Inject(DATABASE) private readonly database: Database.Database,
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(UpdatesService) private readonly updates: UpdatesService,
   ) {}
 
   @Permission("manage", {
@@ -29,12 +31,14 @@ export class MembersController {
       .prepare("SELECT id FROM user WHERE lower(email) = lower(?)")
       .get(body.email ?? "") as { id: string } | undefined;
     if (!user) throw new BadRequestException("Create that user account before adding it");
-    return this.auth.addMember({
+    const member = await this.auth.addMember({
       body: {
         userId: user.id,
         organizationId: actor.organizationId,
         role: "member",
       },
     });
+    this.updates.publish(actor.organizationId, ["members"]);
+    return member;
   }
 }
