@@ -1,6 +1,6 @@
 {
   "name": "better-auth-ac",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Organization RBAC plugin for Better Auth",
   "license": "Apache-2.0",
   "type": "module",
@@ -27,13 +27,17 @@
   "dependencies": {
     "@better-auth-ac/casl": "0.1.0",
     "@better-auth-ac/core": "0.1.0",
+    "@better-auth/core": "^1.6.0",
     "zod": "^4.0.0"
   },
   "peerDependencies": {
     "better-auth": "^1.6.0"
   },
   "devDependencies": {
-    "better-auth": "^1.6.25"
+    "@types/better-sqlite3": "^7.6.13",
+    "better-auth": "^1.6.25",
+    "better-sqlite3": "^12.2.0",
+    "kysely": "^0.29.4"
   },
   "engines": {
     "node": ">=20"

@@ -11,25 +11,44 @@ CREATE TABLE "IamRole" (
   UNIQUE ("organizationId", name)
 );
 
+CREATE TABLE "IamRoleName" (
+  id text PRIMARY KEY,
+  "roleId" text NOT NULL UNIQUE REFERENCES "IamRole"(id) ON DELETE CASCADE
+);
+
 CREATE TABLE "IamRolePermission" (
+  id text PRIMARY KEY,
   "roleId" text NOT NULL REFERENCES "IamRole"(id) ON DELETE CASCADE,
   "permissionKey" text NOT NULL,
   effect text NOT NULL CHECK (effect IN ('ALLOW', 'DENY')),
-  PRIMARY KEY ("roleId", "permissionKey")
+  UNIQUE ("roleId", "permissionKey")
 );
 
 CREATE TABLE "IamMemberRole" (
+  id text PRIMARY KEY,
   "memberId" text NOT NULL REFERENCES member(id) ON DELETE CASCADE,
   "roleId" text NOT NULL REFERENCES "IamRole"(id) ON DELETE CASCADE,
-  PRIMARY KEY ("memberId", "roleId")
+  UNIQUE ("memberId", "roleId")
 );
 
-CREATE TABLE "IamMemberRoleVersion" (
-  "memberId" text PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
-  version integer NOT NULL DEFAULT 0
+ALTER TABLE member
+  ADD COLUMN "iamRoleVersion" integer NULL;
+
+CREATE TABLE "IamAudit" (
+  id text PRIMARY KEY,
+  type text NOT NULL,
+  "actorId" text NOT NULL,
+  "organizationId" text NOT NULL,
+  "targetId" text NOT NULL,
+  outcome text NOT NULL CHECK (outcome = 'SUCCESS'),
+  "correlationId" text NOT NULL,
+  "occurredAt" timestamptz NOT NULL,
+  data jsonb NOT NULL
 );
 
 CREATE INDEX "IamRolePermission_permissionKey_idx"
   ON "IamRolePermission" ("permissionKey");
 CREATE INDEX "IamMemberRole_roleId_idx"
   ON "IamMemberRole" ("roleId");
+CREATE INDEX "IamAudit_organizationId_occurredAt_idx"
+  ON "IamAudit" ("organizationId", "occurredAt" DESC);

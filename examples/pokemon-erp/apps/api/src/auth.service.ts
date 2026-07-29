@@ -1,13 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Inject, Injectable } from "@nestjs/common";
-import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { toNodeHandler } from "better-auth/node";
 import { organization } from "better-auth/plugins";
+import { SqliteDialect } from "kysely";
 import { betterAuthAc, type ActiveMember } from "better-auth-ac";
 import type { PermissionCatalog } from "@better-auth-ac/core";
 import type Database from "better-sqlite3";
-import { DATABASE, ensureExampleSchema, SqliteIamStore } from "./database.js";
+import { DATABASE, ensureExampleSchema } from "./database.js";
+import { UpdatesService } from "./updates.service.js";
 
 function activeMember(database: Database.Database, session: unknown): ActiveMember | null {
   const value = session as
@@ -41,15 +44,45 @@ function activeMember(database: Database.Database, session: unknown): ActiveMemb
   };
 }
 
+function iamUpdates(database: Database.Database, updates: UpdatesService): BetterAuthPlugin {
+  const mutations = new Set([
+    "/iam/roles/create",
+    "/iam/roles/update",
+    "/iam/roles/delete",
+    "/iam/roles/set-permissions",
+    "/iam/members/set-roles",
+  ]);
+  return {
+    id: "pokemon-erp-iam-updates",
+    hooks: {
+      after: [
+        {
+          matcher: ({ path }) => mutations.has(path ?? ""),
+          handler: createAuthMiddleware(async ({ context }) => {
+            const actor = activeMember(database, context.session);
+            if (actor) {
+              updates.publish(actor.organizationId, ["roles", "members", "audit", "ability"]);
+            }
+          }),
+        },
+      ],
+    },
+  };
+}
+
 function createAuth(
   database: Database.Database,
   catalog: PermissionCatalog,
-  store: SqliteIamStore,
+  updates: UpdatesService,
 ) {
   const webOrigin = process.env.WEB_ORIGIN ?? "http://127.0.0.1:5173";
   return betterAuth({
     appName: "Pokémon Supplies ERP",
-    database,
+    database: {
+      dialect: new SqliteDialect({ database }),
+      type: "sqlite",
+      transaction: true,
+    },
     baseURL: process.env.BETTER_AUTH_URL ?? "http://127.0.0.1:3000/api/auth",
     secret: process.env.BETTER_AUTH_SECRET ?? "pokemon-erp-local-development-secret-change-me",
     trustedOrigins: [webOrigin],
@@ -58,10 +91,10 @@ function createAuth(
       organization({ teams: { enabled: true } }),
       betterAuthAc({
         catalog,
-        store,
         resolveActiveMember: async (session) => activeMember(database, session),
         developmentTraces: process.env.NODE_ENV !== "production",
       }),
+      iamUpdates(database, updates),
     ],
   });
 }
@@ -84,11 +117,11 @@ export class AuthService {
 
   constructor(
     @Inject(DATABASE) private readonly database: Database.Database,
-    @Inject(SqliteIamStore) private readonly store: SqliteIamStore,
+    @Inject(UpdatesService) private readonly updates: UpdatesService,
   ) {}
 
   async initialize(catalog: PermissionCatalog): Promise<void> {
-    const auth = createAuth(this.database, catalog, this.store);
+    const auth = createAuth(this.database, catalog, this.updates);
     this.auth = auth;
     await (await getMigrations(auth.options)).runMigrations();
     ensureExampleSchema(this.database);
