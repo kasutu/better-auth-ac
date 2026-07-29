@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
@@ -76,6 +77,7 @@ function createAuth(
   updates: UpdatesService,
 ) {
   const webOrigin = process.env.WEB_ORIGIN ?? "http://127.0.0.1:5173";
+  const catalogToken = process.env.BETTER_AUTH_AC_CATALOG_TOKEN;
   return betterAuth({
     appName: "Pokémon Supplies ERP",
     database: {
@@ -111,6 +113,15 @@ function createAuth(
             );
         },
         resolveActiveMember: async (session) => activeMember(database, session),
+        ...(catalogToken
+          ? {
+              authorizeCatalogArtifact: (headers: Headers) => {
+                const actual = Buffer.from(headers.get("authorization") ?? "");
+                const expected = Buffer.from(`Bearer ${catalogToken}`);
+                return actual.length === expected.length && timingSafeEqual(actual, expected);
+              },
+            }
+          : {}),
         developmentTraces: process.env.NODE_ENV !== "production",
       }),
       iamUpdates(database, updates),

@@ -12,12 +12,13 @@ import { RolesPanel } from "./components/RolesPanel";
 import { MembersPanel } from "./components/MembersPanel";
 import { AuditPanel } from "./components/AuditPanel";
 import { useRealtime } from "./realtime";
+import type { AppAbilities } from "./generated/better-auth-ac";
 
 type Tab = "supplies" | "production" | "roles" | "members" | "audit";
 
 export default function App() {
   const session = authClient.useSession();
-  const ability = useMemo(() => createMongoAbility<[string, string]>([]), []);
+  const ability = useMemo(() => createMongoAbility<AppAbilities>([]), []);
   const [abilityVersion, setAbilityVersion] = useState("");
   const [tab, setTab] = useState<Tab>("supplies");
   const [error, setError] = useState("");

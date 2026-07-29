@@ -1,6 +1,6 @@
-import type { RawRuleOf, MongoAbility } from "@casl/ability";
+import type { RawRuleOf } from "@casl/ability";
+import type { AppAbility } from "./generated/better-auth-ac";
 
-export type AppAbility = MongoAbility<[string, string]>;
 export type AbilityRule = RawRuleOf<AppAbility>;
 
 export interface AbilityPayload {
@@ -16,6 +16,7 @@ export interface CatalogPermission {
   subject: string;
   action: string;
   scope: "organization" | "team";
+  fields?: readonly string[];
 }
 
 export interface Catalog {

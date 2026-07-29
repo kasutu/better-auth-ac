@@ -64,7 +64,16 @@ export function PermissionGroup(key: string, options: PermissionGroupOptions = {
 
 export function Permission(key: string, definition: PermissionLeafDefinition): MethodDecorator {
   return applyDecorators(
-    SetMetadata(PERMISSION_METADATA, Object.freeze({ key, ...definition })),
+    SetMetadata(
+      PERMISSION_METADATA,
+      Object.freeze({
+        key,
+        ...definition,
+        ...(definition.fields === undefined
+          ? {}
+          : { fields: Object.freeze([...definition.fields]) }),
+      }),
+    ),
     UseGuards(PermissionGuard),
   );
 }

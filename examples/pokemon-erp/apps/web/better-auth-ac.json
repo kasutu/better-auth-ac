@@ -1,0 +1,5 @@
+{
+  "source": "http://127.0.0.1:3000/api/auth/iam/catalog/casl.ts",
+  "output": "src/generated/better-auth-ac.ts",
+  "authorizationEnv": "BETTER_AUTH_AC_CATALOG_TOKEN"
+}
