@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Can } from "@casl/react";
+import { Can } from "../can";
 import type { Supply } from "../types";
 import { api } from "../api";
 import { useRealtime } from "../realtime";

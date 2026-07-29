@@ -10,6 +10,7 @@ export interface PermissionDefinition {
   subject: string;
   action: string;
   scope: PermissionScope;
+  fields?: readonly string[];
 }
 
 export interface RolePermission {
@@ -65,6 +66,7 @@ export class AuthorizationError extends Error {
 const keyPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/;
 
 export function assertPermissionDefinition(value: PermissionDefinition): void {
+  const fields = value.fields;
   if (
     !keyPattern.test(value.key) ||
     !value.name.trim() ||
@@ -72,7 +74,12 @@ export function assertPermissionDefinition(value: PermissionDefinition): void {
     !value.group.trim() ||
     !value.subject.trim() ||
     !value.action.trim() ||
-    !["organization", "team"].includes(value.scope)
+    !["organization", "team"].includes(value.scope) ||
+    (fields !== undefined &&
+      (!Array.isArray(fields) ||
+        fields.length === 0 ||
+        fields.some((field) => typeof field !== "string" || !field.trim()) ||
+        new Set(fields).size !== fields.length))
   ) {
     throw new AuthorizationError(
       `Invalid permission definition: ${value.key}`,
@@ -90,6 +97,7 @@ function stableDefinition(value: PermissionDefinition): string {
     value.subject,
     value.action,
     value.scope,
+    JSON.stringify(value.fields ?? null),
   ].join("\u001f");
 }
 
@@ -113,7 +121,15 @@ export function defineCatalog(definitions: readonly PermissionDefinition[]): Per
         "DUPLICATE_PERMISSION",
       );
     }
-    byKey.set(definition.key, Object.freeze({ ...definition }));
+    byKey.set(
+      definition.key,
+      Object.freeze({
+        ...definition,
+        ...(definition.fields === undefined
+          ? {}
+          : { fields: Object.freeze([...definition.fields]) }),
+      }),
+    );
   }
   const permissions = Object.freeze([...byKey.values()].sort((a, b) => a.key.localeCompare(b.key)));
   return Object.freeze({

@@ -20,6 +20,7 @@ export class SuppliesController {
     subject: "Supply",
     action: "read",
     scope: "organization",
+    fields: ["id", "name", "category", "quantity", "reorderLevel"],
   })
   @Get()
   async list(@Req() request: Request) {
@@ -33,6 +34,7 @@ export class SuppliesController {
     subject: "Supply",
     action: "create",
     scope: "organization",
+    fields: ["id", "name", "category", "quantity", "reorderLevel"],
   })
   @Post()
   async create(
@@ -57,6 +59,7 @@ export class SuppliesController {
     subject: "Supply",
     action: "update",
     scope: "organization",
+    fields: ["quantity"],
   })
   @Patch(":id/stock")
   async adjust(

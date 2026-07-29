@@ -10,6 +10,16 @@ export class AccessController {
     subject: "IamRole",
     action: "read",
     scope: "organization",
+    fields: [
+      "id",
+      "organizationId",
+      "name",
+      "color",
+      "rank",
+      "isProtected",
+      "version",
+      "permissions",
+    ],
   })
   @Get("roles")
   canReadRoles() {
@@ -22,6 +32,7 @@ export class AccessController {
     subject: "IamRole",
     action: "manage",
     scope: "organization",
+    fields: ["name", "color", "rank", "permissions"],
   })
   @Post("roles")
   canManageRoles() {
@@ -34,6 +45,7 @@ export class AccessController {
     subject: "IamMemberRole",
     action: "manage",
     scope: "organization",
+    fields: ["memberId", "roleIds"],
   })
   @Post("member-roles")
   canAssignMemberRoles() {

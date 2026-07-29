@@ -14,7 +14,7 @@ import {
   type PermissionEffect,
   type RolePermission,
 } from "@better-auth-ac/core";
-import { toCaslRules } from "@better-auth-ac/casl";
+import { caslModuleEtag, generateCaslModule, toCaslRules } from "@better-auth-ac/casl";
 
 export interface IamRole {
   id: string;
@@ -94,6 +94,7 @@ export interface IamStore {
 interface BetterAuthAcBaseOptions {
   catalog: PermissionCatalog;
   resolveActiveMember(session: unknown): Promise<ActiveMember | null>;
+  authorizeCatalogArtifact?(headers: Headers): Promise<boolean> | boolean;
   correlationId?(headers: Headers): string;
   developmentTraces?: boolean;
 }
@@ -696,6 +697,8 @@ function toApiError(error: unknown): never {
 
 export function betterAuthAc(options: BetterAuthAcOptions) {
   let service = options.store ? new IamService(options.catalog, options.store) : undefined;
+  const caslModule = generateCaslModule(options.catalog);
+  const catalogEtag = caslModuleEtag(caslModule);
   const iam = () => {
     if (!service) throw new Error("better-auth-ac has not been initialized");
     return service;
@@ -785,6 +788,20 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
           return ctx.json(options.catalog);
         },
       ),
+      iamCatalogCasl: createAuthEndpoint("/iam/catalog/casl.ts", { method: "GET" }, async (ctx) => {
+        if (!(await options.authorizeCatalogArtifact?.(ctx.headers ?? new Headers()))) {
+          throw new APIError("UNAUTHORIZED", { message: "Invalid catalog authorization" });
+        }
+        if (ctx.headers?.get("if-none-match") === catalogEtag) {
+          return new Response(null, { status: 304, headers: { ETag: catalogEtag } });
+        }
+        return new Response(caslModule, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            ETag: catalogEtag,
+          },
+        });
+      }),
       iamListRoles: createAuthEndpoint(
         "/iam/roles",
         { method: "GET", use: [sessionMiddleware] },

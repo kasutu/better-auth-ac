@@ -19,6 +19,7 @@ export class AuditController {
     subject: "AuditEvent",
     action: "read",
     scope: "organization",
+    fields: ["id", "type", "actorId", "targetId", "outcome", "correlationId", "occurredAt", "data"],
   })
   @Get()
   async list(@Req() request: Request) {
