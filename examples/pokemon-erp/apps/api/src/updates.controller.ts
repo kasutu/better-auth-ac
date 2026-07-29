@@ -1,5 +1,13 @@
-import { Controller, Inject, Req, Sse } from "@nestjs/common";
+import {
+  Controller,
+  Inject,
+  Req,
+  Sse,
+  UnauthorizedException,
+  type MessageEvent,
+} from "@nestjs/common";
 import type { Request } from "express";
+import { concatMap } from "rxjs";
 import { SessionService } from "./session.service.js";
 import { UpdatesService } from "./updates.service.js";
 
@@ -13,6 +21,16 @@ export class UpdatesController {
   @Sse()
   async stream(@Req() request: Request) {
     const actor = await this.sessions.active(request);
-    return this.updates.forOrganization(actor.organizationId);
+    return this.updates.forOrganization(actor.organizationId).pipe(
+      concatMap(async (event) => {
+        try {
+          await this.sessions.active(request);
+          return event;
+        } catch (error) {
+          if (!(error instanceof UnauthorizedException)) throw error;
+          return { type: "session-invalidated", data: [] } satisfies MessageEvent;
+        }
+      }),
+    );
   }
 }

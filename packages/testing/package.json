@@ -1,6 +1,6 @@
 {
   "name": "@better-auth-ac/testing",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fixtures for better-auth-ac consumers",
   "license": "Apache-2.0",
   "type": "module",
@@ -21,8 +21,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth-ac/core": "0.2.0",
-    "better-auth-ac": "0.2.0"
+    "@better-auth-ac/core": "0.3.0",
+    "better-auth-ac": "0.3.0"
   },
   "engines": {
     "node": ">=20"

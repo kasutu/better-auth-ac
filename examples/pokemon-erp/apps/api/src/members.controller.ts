@@ -23,6 +23,7 @@ export class MembersController {
     subject: "OrganizationMember",
     action: "manage",
     scope: "organization",
+    fields: ["id", "userId", "role", "user"],
   })
   @Post()
   async add(@Req() request: Request, @Body() body: { email?: string }) {

@@ -20,6 +20,7 @@ export class ProductionController {
     subject: "ProductionOrder",
     action: "read",
     scope: "organization",
+    fields: ["id", "product", "quantity", "status", "createdAt"],
   })
   @Get()
   async list(@Req() request: Request) {
@@ -33,6 +34,7 @@ export class ProductionController {
     subject: "ProductionOrder",
     action: "create",
     scope: "organization",
+    fields: ["id", "product", "quantity", "status", "createdAt"],
   })
   @Post()
   async run(@Req() request: Request, @Body() body: { product?: string; quantity?: number }) {

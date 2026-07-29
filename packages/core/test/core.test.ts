@@ -44,6 +44,28 @@ describe("core authorization", () => {
     );
   });
 
+  it("validates and freezes catalog fields", () => {
+    for (const fields of [[], [""], [" "], ["id", "id"]]) {
+      expect(() => defineCatalog([{ ...permission, fields }])).toThrow(AuthorizationError);
+    }
+
+    const fields = ["id", "total"];
+    const catalog = defineCatalog([{ ...permission, fields }]);
+    fields.push("status");
+
+    expect(catalog.permissions[0]?.fields).toEqual(["id", "total"]);
+    expect(Object.isFrozen(catalog.permissions[0]?.fields)).toBe(true);
+  });
+
+  it("includes ordered fields in the catalog version", () => {
+    const first = defineCatalog([{ ...permission, fields: ["id", "total"] }]);
+    const reordered = defineCatalog([{ ...permission, fields: ["total", "id"] }]);
+    const changed = defineCatalog([{ ...permission, fields: ["id", "status"] }]);
+
+    expect(first.version).not.toBe(reordered.version);
+    expect(first.version).not.toBe(changed.version);
+  });
+
   it("produces a stable effects diff", () => {
     expect(
       diffEffects(

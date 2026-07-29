@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent } from "react";
-import { API_ORIGIN } from "./auth-client";
+import { API_ORIGIN, authClient } from "./auth-client";
 
 type UpdateTopic = "supplies" | "production" | "roles" | "members" | "audit" | "ability";
 
@@ -18,6 +18,7 @@ export function useRealtime(
       const changed = JSON.parse(event.data) as UpdateTopic[];
       if (topicList.split(",").some((topic) => changed.includes(topic as UpdateTopic))) onUpdate();
     });
+    source.addEventListener("session-invalidated", () => void authClient.signOut());
     return () => source.close();
   }, [enabled, topicList]);
 }

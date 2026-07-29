@@ -14,7 +14,7 @@ import {
   type PermissionEffect,
   type RolePermission,
 } from "@better-auth-ac/core";
-import { toCaslRules } from "@better-auth-ac/casl";
+import { caslModuleEtag, generateCaslModule, toCaslRules } from "@better-auth-ac/casl";
 
 export interface IamRole {
   id: string;
@@ -94,6 +94,7 @@ export interface IamStore {
 interface BetterAuthAcBaseOptions {
   catalog: PermissionCatalog;
   resolveActiveMember(session: unknown): Promise<ActiveMember | null>;
+  authorizeCatalogArtifact?(headers: Headers): Promise<boolean> | boolean;
   correlationId?(headers: Headers): string;
   developmentTraces?: boolean;
 }
@@ -495,7 +496,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof roleInput>,
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
       this.require(decisions, "iam.role.manage", actor.isOwner);
@@ -515,7 +516,7 @@ export class IamService {
           version: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: [] };
     });
   }
 
@@ -523,7 +524,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof roleInput> & z.infer<typeof versionedRole>,
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
       this.require(decisions, "iam.role.manage", actor.isOwner);
@@ -538,7 +539,7 @@ export class IamService {
           toVersion: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: await transaction.getRolePermissions(role.id) };
     });
   }
 
@@ -568,7 +569,7 @@ export class IamService {
     actor: ActiveMember,
     input: z.infer<typeof versionedRole> & { effects: RolePermission[] },
     correlationId: string,
-  ): Promise<IamRole> {
+  ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const effects = [...input.effects].sort((a, b) => a.key.localeCompare(b.key));
       assertKnownEffects(this.catalog, effects);
@@ -581,7 +582,9 @@ export class IamService {
       const before = (await transaction.getRolePermissions(target.id)).sort((a, b) =>
         a.key.localeCompare(b.key),
       );
-      if (JSON.stringify(before) === JSON.stringify(effects)) return target;
+      if (JSON.stringify(before) === JSON.stringify(effects)) {
+        return { ...target, permissions: before };
+      }
       const role = await transaction.setRolePermissions(target.id, input.expectedVersion, effects);
       const members = await transaction.listMemberIdsForRole(target.id);
       await transaction.invalidateSessions(members);
@@ -592,7 +595,7 @@ export class IamService {
           toVersion: role.version,
         }),
       );
-      return role;
+      return { ...role, permissions: effects };
     });
   }
 
@@ -696,6 +699,8 @@ function toApiError(error: unknown): never {
 
 export function betterAuthAc(options: BetterAuthAcOptions) {
   let service = options.store ? new IamService(options.catalog, options.store) : undefined;
+  const caslModule = generateCaslModule(options.catalog);
+  const catalogEtag = caslModuleEtag(caslModule);
   const iam = () => {
     if (!service) throw new Error("better-auth-ac has not been initialized");
     return service;
@@ -785,6 +790,20 @@ export function betterAuthAc(options: BetterAuthAcOptions) {
           return ctx.json(options.catalog);
         },
       ),
+      iamCatalogCasl: createAuthEndpoint("/iam/catalog/casl.ts", { method: "GET" }, async (ctx) => {
+        if (!(await options.authorizeCatalogArtifact?.(ctx.headers ?? new Headers()))) {
+          throw new APIError("UNAUTHORIZED", { message: "Invalid catalog authorization" });
+        }
+        if (ctx.headers?.get("if-none-match") === catalogEtag) {
+          return new Response(null, { status: 304, headers: { ETag: catalogEtag } });
+        }
+        return new Response(caslModule, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            ETag: catalogEtag,
+          },
+        });
+      }),
       iamListRoles: createAuthEndpoint(
         "/iam/roles",
         { method: "GET", use: [sessionMiddleware] },
