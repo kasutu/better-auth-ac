@@ -16,7 +16,6 @@
     "esbuild": "0.28.1"
   },
   "scripts": {
-    "dev": "npm run example:dev",
     "build": "npm run build -w @better-auth-ac/core && npm run build -w @better-auth-ac/casl && npm run build -w @better-auth-ac/nest && npm run build -w better-auth-ac && npm run build -w @better-auth-ac/testing && npm run build -w pokemon-erp-api && npm run build -w pokemon-erp-web",
     "api:check": "node scripts/check-api.mjs",
     "clean": "npm run clean --workspaces --if-present",
