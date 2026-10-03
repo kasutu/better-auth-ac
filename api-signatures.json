@@ -1,7 +1,7 @@
 {
-  "packages/casl/dist/index.d.ts": "b90dd9f7c4c7c9b953a31876b2665f40255fc74225f7c7bfc6bdbdcf52f7f0de",
-  "packages/core/dist/index.d.ts": "d35ccf032ab0d45cd7d8c03eb164021fbc8be1b1d355849ed635ff9b33962e35",
-  "packages/nest/dist/index.d.ts": "7c75a54102b6b091da070b62b0a107c1ef91fb2a1a1edd2a0fc064685018a185",
-  "packages/plugin/dist/index.d.ts": "450bbb1287661ec920bad61c348de1add6ad5a38abcf5a681a13bde0bce010d8",
+  "packages/casl/dist/index.d.ts": "bfb8b093b5d9ecf2d0fd84e8f24346ae72ef513fbc5c0db5732c6ee3875db425",
+  "packages/core/dist/index.d.ts": "98aac39392d7b2d76e5e2affb35645a3f4c0c1a6042e41ff4c7ff82e23324cc1",
+  "packages/nest/dist/index.d.ts": "c62400e7af5396fb5bdeddaa536bbffe56f5251b4de03574437327b442b1ae65",
+  "packages/plugin/dist/index.d.ts": "2fa2717f6b22eb5a6fdd3c14a5cd590c148abf29cc55a6d0492896f4edf317ff",
   "packages/testing/dist/index.d.ts": "1a48cf4c1bb8375682f0a04e13be575b69cead2b4ddb0a1dd034e31ba37178ad"
 }

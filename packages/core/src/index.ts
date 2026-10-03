@@ -2,6 +2,12 @@ export type PermissionEffect = "ALLOW" | "DENY";
 export type DecisionEffect = PermissionEffect | "NONE";
 export type PermissionScope = "organization" | "team";
 
+/**
+ * A role permission key that matches every catalog key. Roles may only store it as `ALLOW`.
+ * Explicit `DENY` records on any assigned role still beat it.
+ */
+export const WILDCARD_PERMISSION = "*";
+
 export interface PermissionDefinition {
   key: string;
   name: string;
@@ -145,7 +151,13 @@ export function assertKnownEffects(
   const known = new Set(catalog.permissions.map(({ key }) => key));
   const seen = new Set<string>();
   for (const effect of effects) {
-    if (!known.has(effect.key)) {
+    if (effect.key === WILDCARD_PERMISSION && effect.effect !== "ALLOW") {
+      throw new AuthorizationError(
+        "The wildcard permission can only be allowed",
+        "INVALID_PERMISSION",
+      );
+    }
+    if (effect.key !== WILDCARD_PERMISSION && !known.has(effect.key)) {
       throw new AuthorizationError(`Unknown permission: ${effect.key}`, "UNKNOWN_PERMISSION");
     }
     if (seen.has(effect.key) || !["ALLOW", "DENY"].includes(effect.effect)) {
@@ -164,15 +176,34 @@ export interface EvaluateInput {
   organizationId: string;
   teamIds?: readonly string[];
   requiredTeamId?: string;
+  /**
+   * The verified actor holds every permission without role records, for example a platform
+   * operator. It skips role, deny, and team checks, like an organization owner.
+   */
+  wildcard?: boolean;
 }
 
 export function evaluate(input: EvaluateInput): Decision {
+  if (input.wildcard === true) {
+    return {
+      key: input.permission.key,
+      effect: "ALLOW",
+      allowed: true,
+      reason: "The actor holds the wildcard permission.",
+      trace: [],
+    };
+  }
+
   const trace: DecisionTraceEntry[] = [];
   let resolved: DecisionEffect = "NONE";
 
   for (const role of [...input.roles].sort((a, b) => a.id.localeCompare(b.id))) {
     const record = role.permissions.find(({ key }) => key === input.permission.key);
-    const effect = record?.effect ?? "NONE";
+    const wildcard = role.permissions.find(({ key }) => key === WILDCARD_PERMISSION);
+    const effect: DecisionEffect =
+      record?.effect === "DENY" || wildcard?.effect === "DENY"
+        ? "DENY"
+        : (record?.effect ?? wildcard?.effect ?? "NONE");
     const tenantMatch = role.organizationId === input.organizationId;
     trace.push({
       roleId: role.id,
@@ -181,7 +212,9 @@ export function evaluate(input: EvaluateInput): Decision {
       reason: tenantMatch
         ? record
           ? "Stored role effect."
-          : "No stored effect."
+          : wildcard
+            ? "Wildcard role effect."
+            : "No stored effect."
         : "Tenant mismatch.",
     });
     if (!tenantMatch) continue;

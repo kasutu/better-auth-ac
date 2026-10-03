@@ -42,6 +42,8 @@ export interface VerifiedAuthorizationContext {
   organizationId: string;
   teamIds: readonly string[];
   roles: readonly AssignedRole[];
+  /** The actor holds every permission without role records. See `EvaluateInput.wildcard`. */
+  wildcard?: boolean;
 }
 
 export interface AuthorizationContextResolver {
@@ -119,6 +121,7 @@ export class PermissionGuard implements CanActivate {
       organizationId: verified.organizationId,
       teamIds: verified.teamIds,
       ...(permission.scope === "team" && requiredTeamId ? { requiredTeamId } : {}),
+      ...(verified.wildcard === true ? { wildcard: true } : {}),
     });
     if (!decision.allowed) throw new ForbiddenException(decision.reason);
     return true;
@@ -197,5 +200,6 @@ export function evaluateNestPermission(
     organizationId: context.organizationId,
     teamIds: context.teamIds,
     ...(requiredTeamId ? { requiredTeamId } : {}),
+    ...(context.wildcard === true ? { wildcard: true } : {}),
   });
 }

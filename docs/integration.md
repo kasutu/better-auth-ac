@@ -19,6 +19,10 @@ betterAuth({
 `resolveActiveMember` must derive the active organization and member from the verified Better Auth
 session. It must not read an organization ID from request input.
 
+For a platform operator who has no member row in the active organization, return
+`wildcard: true`. The plugin then reads no member row for that actor. Set the same flag on the Nest
+`VerifiedAuthorizationContext`. See the README section "Wildcard permission".
+
 Implement `IamStore` on the application's database adapter. Every callback passed to `transaction`
 must run in one database transaction. `audit` and `invalidateSessions` must write to Carbon's durable
 delivery mechanism in that same transaction. A worker can then call `AuditService.event()` and

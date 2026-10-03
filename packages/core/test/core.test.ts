@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AuthorizationError,
+  WILDCARD_PERMISSION,
+  assertKnownEffects,
   defineCatalog,
   diffEffects,
   evaluate,
@@ -83,5 +85,90 @@ describe("core authorization", () => {
       changed: [{ key: "order.cancel", from: "ALLOW", to: "DENY" }],
       removed: ["inventory.adjust"],
     });
+  });
+});
+
+describe("wildcard permission", () => {
+  const wildcardRole = (id = "admin", organizationId = "org-1"): AssignedRole => ({
+    id,
+    organizationId,
+    name: id,
+    rank: 10,
+    permissions: [{ key: WILDCARD_PERMISSION, effect: "ALLOW" }],
+  });
+
+  it("lets a role wildcard allow every catalog key", () => {
+    const decision = evaluate({ permission, roles: [wildcardRole()], organizationId: "org-1" });
+    expect(decision).toMatchObject({ effect: "ALLOW", allowed: true });
+    expect(decision.trace).toEqual([
+      { roleId: "admin", roleName: "admin", effect: "ALLOW", reason: "Wildcard role effect." },
+    ]);
+  });
+
+  it("keeps explicit deny precedence over a role wildcard", () => {
+    const sameRole: AssignedRole = {
+      ...wildcardRole(),
+      permissions: [
+        { key: WILDCARD_PERMISSION, effect: "ALLOW" },
+        { key: permission.key, effect: "DENY" },
+      ],
+    };
+    expect(evaluate({ permission, roles: [sameRole], organizationId: "org-1" }).effect).toBe(
+      "DENY",
+    );
+    expect(
+      evaluate({
+        permission,
+        roles: [wildcardRole(), role("deny", "DENY")],
+        organizationId: "org-1",
+      }).effect,
+    ).toBe("DENY");
+  });
+
+  it("keeps tenant and team checks for a role wildcard", () => {
+    expect(
+      evaluate({ permission, roles: [wildcardRole("x", "org-2")], organizationId: "org-1" })
+        .allowed,
+    ).toBe(false);
+    const teamPermission = { ...permission, scope: "team" as const };
+    expect(
+      evaluate({
+        permission: teamPermission,
+        roles: [wildcardRole()],
+        organizationId: "org-1",
+        teamIds: ["team-1"],
+        requiredTeamId: "team-2",
+      }).allowed,
+    ).toBe(false);
+  });
+
+  it("lets an actor wildcard bypass roles, denies, and team scope", () => {
+    const decision = evaluate({
+      permission: { ...permission, scope: "team" },
+      roles: [role("deny", "DENY")],
+      organizationId: "org-1",
+      requiredTeamId: "team-2",
+      wildcard: true,
+    });
+    expect(decision).toEqual({
+      key: permission.key,
+      effect: "ALLOW",
+      allowed: true,
+      reason: "The actor holds the wildcard permission.",
+      trace: [],
+    });
+  });
+
+  it("accepts only an allowed wildcard role effect", () => {
+    const catalog = defineCatalog([permission]);
+    expect(() =>
+      assertKnownEffects(catalog, [{ key: WILDCARD_PERMISSION, effect: "ALLOW" }]),
+    ).not.toThrow();
+    expect(() =>
+      assertKnownEffects(catalog, [{ key: WILDCARD_PERMISSION, effect: "DENY" }]),
+    ).toThrow(AuthorizationError);
+    expect(() => defineCatalog([{ ...permission, key: WILDCARD_PERMISSION }])).toThrow(
+      AuthorizationError,
+    );
   });
 });

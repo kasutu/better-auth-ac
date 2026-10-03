@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { expect, it } from "vitest";
 import { Reflector } from "@nestjs/core";
 import {
+  evaluateNestPermission,
   Permission,
   PermissionCatalogService,
   PermissionGroup,
@@ -68,4 +69,22 @@ it("carries decorator fields into the discovered catalog", () => {
   service.onModuleInit();
 
   expect(service.getCatalog().permissions[0]?.fields).toEqual(["id", "total"]);
+});
+
+it("allows a wildcard context without role records", () => {
+  const permission = {
+    key: "order.refund",
+    name: "Refund",
+    description: "Refund an order.",
+    group: "Order",
+    subject: "Order",
+    action: "refund",
+    scope: "organization" as const,
+  };
+  const context = { organizationId: "org-1", teamIds: [], roles: [] };
+  expect(evaluateNestPermission(permission, context).allowed).toBe(false);
+  expect(evaluateNestPermission(permission, { ...context, wildcard: true })).toMatchObject({
+    effect: "ALLOW",
+    allowed: true,
+  });
 });

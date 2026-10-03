@@ -38,6 +38,13 @@ export interface ActiveMember {
   organizationId: string;
   teamIds: readonly string[];
   isOwner: boolean;
+  /**
+   * The actor holds every permission, for example a platform operator in an organization they
+   * have not joined. The plugin does not read a member row or roles for this actor, so
+   * `memberId` may be a placeholder. Mutations on the actor's own member row fail with
+   * `NOT_FOUND`.
+   */
+  wildcard?: boolean;
 }
 
 export type AuditEventType =
@@ -420,17 +427,21 @@ function adapterStore(
 function effective(
   catalog: PermissionCatalog,
   roles: readonly AssignedRole[],
-  actor: ActiveMember,
+  subject: { organizationId: string; teamIds: readonly string[]; wildcard?: boolean },
 ) {
   return catalog.permissions.map((permission) =>
     evaluate({
       permission,
       roles,
-      organizationId: actor.organizationId,
-      teamIds: actor.teamIds,
+      organizationId: subject.organizationId,
+      teamIds: subject.teamIds,
+      ...(subject.wildcard === true ? { wildcard: true } : {}),
     }),
   );
 }
+
+const ownMemberRow = (actor: ActiveMember, memberId: string) =>
+  actor.wildcard === true && memberId === actor.memberId;
 
 function auditEvent(
   type: AuditEventType,
@@ -447,7 +458,7 @@ function auditEvent(
     outcome: "SUCCESS",
     correlationId,
     occurredAt: new Date().toISOString(),
-    data,
+    data: actor.wildcard === true ? { ...data, actorWildcard: true } : data,
   };
 }
 
@@ -458,7 +469,10 @@ export class IamService {
   ) {}
 
   private async actorBoundary(transaction: IamTransaction, actor: ActiveMember) {
-    const roles = await transaction.getMemberRoles(actor.organizationId, actor.memberId);
+    const wildcard = actor.wildcard === true;
+    const roles = wildcard
+      ? []
+      : await transaction.getMemberRoles(actor.organizationId, actor.memberId);
     const decisions = effective(this.catalog, roles, actor);
     return {
       roles,
@@ -466,14 +480,18 @@ export class IamService {
       boundary: {
         organizationId: actor.organizationId,
         rank: roles.length ? Math.min(...roles.map(({ rank }) => rank)) : Number.MAX_SAFE_INTEGER,
-        isOwner: actor.isOwner,
+        isOwner: actor.isOwner || wildcard,
         permissions: decisions.filter(({ allowed }) => allowed).map(({ key }) => key),
       },
     };
   }
 
-  private require(decisions: readonly Decision[], key: string, isOwner: boolean): void {
-    if (!isOwner && !decisions.some((decision) => decision.key === key && decision.allowed)) {
+  private require(decisions: readonly Decision[], key: string, actor: ActiveMember): void {
+    if (
+      !actor.isOwner &&
+      actor.wildcard !== true &&
+      !decisions.some((decision) => decision.key === key && decision.allowed)
+    ) {
       throw new IamMutationError(`Missing permission: ${key}`, "FORBIDDEN");
     }
   }
@@ -481,7 +499,7 @@ export class IamService {
   listRoles(actor: ActiveMember): Promise<IamRoleWithPermissions[]> {
     return this.store.transaction(async (transaction) => {
       const { decisions } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.read", actor.isOwner);
+      this.require(decisions, "iam.role.read", actor);
       const roles = await transaction.listRoles(actor.organizationId);
       return Promise.all(
         roles.map(async (role) => ({
@@ -499,7 +517,7 @@ export class IamService {
   ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.manage", actor.isOwner);
+      this.require(decisions, "iam.role.manage", actor);
       assertRoleMutation(boundary, {
         organizationId: actor.organizationId,
         rank: input.rank,
@@ -527,7 +545,7 @@ export class IamService {
   ): Promise<IamRoleWithPermissions> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.manage", actor.isOwner);
+      this.require(decisions, "iam.role.manage", actor);
       const target = await transaction.getRole(actor.organizationId, input.roleId);
       if (!target) throw new IamMutationError("Role not found", "NOT_FOUND");
       assertRoleMutation(boundary, target);
@@ -550,7 +568,7 @@ export class IamService {
   ): Promise<void> {
     return this.store.transaction(async (transaction) => {
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.manage", actor.isOwner);
+      this.require(decisions, "iam.role.manage", actor);
       const target = await transaction.getRole(actor.organizationId, input.roleId);
       if (!target) throw new IamMutationError("Role not found", "NOT_FOUND");
       assertRoleMutation(boundary, target);
@@ -574,7 +592,7 @@ export class IamService {
       const effects = [...input.effects].sort((a, b) => a.key.localeCompare(b.key));
       assertKnownEffects(this.catalog, effects);
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.manage", actor.isOwner);
+      this.require(decisions, "iam.role.manage", actor);
       const target = await transaction.getRole(actor.organizationId, input.roleId);
       if (!target) throw new IamMutationError("Role not found", "NOT_FOUND");
       const allowedKeys = effects.filter(({ effect }) => effect === "ALLOW").map(({ key }) => key);
@@ -605,8 +623,11 @@ export class IamService {
     correlationId: string,
   ): Promise<{ version: number; roles: AssignedRole[] }> {
     return this.store.transaction(async (transaction) => {
+      if (ownMemberRow(actor, input.memberId)) {
+        throw new IamMutationError("Member not found", "NOT_FOUND");
+      }
       const { decisions, boundary } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.member-role.manage", actor.isOwner);
+      this.require(decisions, "iam.member-role.manage", actor);
       const roleIds = [...new Set(input.roleIds)].sort();
       for (const roleId of roleIds) {
         const role = await transaction.getRole(actor.organizationId, roleId);
@@ -647,17 +668,28 @@ export class IamService {
   memberRoles(actor: ActiveMember, memberId: string) {
     return this.store.transaction(async (transaction) => {
       const { decisions } = await this.actorBoundary(transaction, actor);
-      this.require(decisions, "iam.role.read", actor.isOwner);
+      this.require(decisions, "iam.role.read", actor);
+      if (ownMemberRow(actor, memberId)) return { version: 0, roles: [], decisions };
       const roles = await transaction.getMemberRoles(actor.organizationId, memberId);
       return {
         version: await transaction.getMemberRoleVersion(actor.organizationId, memberId),
         roles,
-        decisions: effective(this.catalog, roles, { ...actor, memberId }),
+        decisions: effective(this.catalog, roles, {
+          organizationId: actor.organizationId,
+          teamIds: actor.teamIds,
+        }),
       };
     });
   }
 
-  ability(actor: ActiveMember, developmentTraces = false) {
+  async ability(actor: ActiveMember, developmentTraces = false) {
+    if (actor.wildcard === true) {
+      const decisions = effective(this.catalog, [], actor);
+      return {
+        ...toCaslRules(this.catalog, decisions, { wildcard: true }),
+        ...(developmentTraces ? { decisions } : {}),
+      };
+    }
     return this.store.transaction(async (transaction) => {
       const roles = await transaction.getMemberRoles(actor.organizationId, actor.memberId);
       const decisions = actor.isOwner

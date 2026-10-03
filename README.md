@@ -21,6 +21,8 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 - **Multiple roles**: A member can have more than one organization role.
 - **Decision traces**: The evaluator returns stable role and effect details.
 - **Scope checks**: Organization and team checks run after role evaluation.
+- **Wildcard permission**: A role `*` `ALLOW` matches every catalog key. An actor with
+  `wildcard: true` has all permissions without a member row. See [Wildcard permission](#wildcard-permission).
 
 ### Role Management
 
@@ -50,6 +52,7 @@ Scoped, multi-tenant role-based access control for Better Auth, NestJS, and CASL
 
 - **UI rules**: Effective decisions convert to deterministic CASL rules.
 - **Deny rules**: An explicit deny creates an inverted rule with a reason.
+- **Wildcard rule**: A wildcard actor gets one `manage`/`all` rule.
 - **Backend authority**: The backend does not accept CASL rules as authorization evidence.
 
 ### Audit Events
@@ -282,6 +285,37 @@ Member
 
 The built-in store uses a role-name reservation and deterministic relation IDs. A custom store must
 enforce unique role names, role-permission pairs, and member-role pairs.
+
+---
+
+## Wildcard permission
+
+The wildcard has two forms.
+
+**Role wildcard.** A role can store `{ key: "*", effect: "ALLOW" }`. It matches every catalog key.
+
+- An explicit `DENY` for a key, on the same role or on another assigned role, beats the wildcard.
+- Tenant and team checks still apply.
+- A role cannot store `*` as `DENY`.
+- Only an organization owner or a wildcard actor can grant `*` or assign a role that has it.
+  A member who holds every catalog key separately cannot.
+- CASL output for a role wildcard is one rule for each allowed catalog key, so denies and team
+  checks stay exact.
+
+**Actor wildcard.** `resolveActiveMember` can return `wildcard: true`. Use this for a platform
+operator who must act in an organization without a member row.
+
+- Every decision is `ALLOW`. Denies, team checks, and rank checks do not apply. This is the same
+  bypass as `isOwner`.
+- The plugin does not read the member row or roles of this actor. `memberId` can be a placeholder.
+- `GET /iam/me/ability` returns one rule: `{ action: "manage", subject: "all" }`.
+- `GET /iam/member/roles` for the actor's own `memberId` returns no roles and all-allow decisions.
+- `POST /iam/members/set-roles` for the actor's own `memberId` fails with `NOT_FOUND`.
+- Audit events from this actor have `data.actorWildcard: true`.
+
+In Nest, set `wildcard: true` on the `VerifiedAuthorizationContext`. In core, pass
+`wildcard: true` to `evaluate()`. Derive the wildcard only from verified server data, never from
+request input.
 
 ---
 
