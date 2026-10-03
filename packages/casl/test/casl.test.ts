@@ -172,3 +172,26 @@ it("rejects an invalid catalog version", () => {
 it("changes the artifact ETag when generated content changes", () => {
   expect(caslModuleEtag("first")).not.toBe(caslModuleEtag("second"));
 });
+
+it("emits one manage-all rule for a wildcard actor", async () => {
+  const { createMongoAbility } = await import("@casl/ability");
+  const catalog = defineCatalog([
+    {
+      key: "order.read",
+      name: "Read",
+      description: "Read orders.",
+      group: "Orders",
+      subject: "Order",
+      action: "read",
+      scope: "organization",
+    },
+  ]);
+  const payload = toCaslRules(catalog, [], { wildcard: true });
+  expect(payload).toEqual({
+    version: catalog.version,
+    rules: [{ subject: "all", action: "manage" }],
+  });
+  const ability = createMongoAbility(payload.rules);
+  expect(ability.can("read", "Order")).toBe(true);
+  expect(ability.can("delete", "Anything")).toBe(true);
+});

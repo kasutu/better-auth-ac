@@ -14,10 +14,22 @@ export interface AbilityPayload {
   rules: AbilityRule[];
 }
 
+export interface CaslRuleOptions {
+  /**
+   * The actor holds the wildcard permission. The payload is one CASL `manage`/`all` rule, which
+   * CASL matches for every action and subject.
+   */
+  wildcard?: boolean;
+}
+
 export function toCaslRules(
   catalog: PermissionCatalog,
   decisions: readonly Decision[],
+  options: CaslRuleOptions = {},
 ): AbilityPayload {
+  if (options.wildcard === true) {
+    return { version: catalog.version, rules: [{ subject: "all", action: "manage" }] };
+  }
   const byKey = new Map(decisions.map((decision) => [decision.key, decision]));
   const rules = catalog.permissions.flatMap<AbilityRule>((permission) => {
     const decision = byKey.get(permission.key);

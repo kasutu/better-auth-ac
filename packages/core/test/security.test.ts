@@ -34,3 +34,21 @@ it("fails closed across tenants and role boundaries", () => {
     ),
   ).toThrow();
 });
+
+it("lets only an owner grant the wildcard permission", () => {
+  const target = { organizationId: "org-a", rank: 20, isProtected: false };
+  expect(() =>
+    assertRoleMutation(
+      { organizationId: "org-a", rank: 10, isOwner: false, permissions: ["order.read"] },
+      target,
+      ["*"],
+    ),
+  ).toThrow("does not have");
+  expect(() =>
+    assertRoleMutation(
+      { organizationId: "org-a", rank: 10, isOwner: true, permissions: [] },
+      target,
+      ["*"],
+    ),
+  ).not.toThrow();
+});

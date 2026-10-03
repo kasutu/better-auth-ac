@@ -14,6 +14,10 @@ member, and team memberships.
 - Team checks run after RBAC resolution.
 - Protected roles cannot be changed through normal mutations.
 - Non-owners can manage only lower-ranked roles and cannot grant permissions they lack.
+- Only owners and wildcard actors can grant the `*` role permission or assign a role that has it.
+  Explicit `DENY` beats a role `*`. A role cannot store `*` as `DENY`.
+- An actor wildcard (`wildcard: true`) bypasses every check, like an owner. The consumer must set it
+  only from verified server data. Audit events from this actor carry `actorWildcard: true`.
 - Catalog keys and request bodies are validated at the boundary.
 - Mutations use compare-and-set versions, normalized unique keys, and transactions.
 - Audit delivery and session invalidation are transaction responsibilities, preventing unrecorded
